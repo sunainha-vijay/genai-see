@@ -5,12 +5,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StockInsight | Market Analysis & Predictions</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    </head>
+    <style>
+        /* Styles for progress indicator */
+        #progress-indicator {
+            display: none; /* Hidden by default */
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background-color: #f8f9fa; /* Light background */
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #dee2e6; /* Subtle border */
+        }
+        #progress-indicator p#progress-main-message { /* Style for the main "Generating..." message */
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            color: #343a40; /* Darker text */
+            font-weight: 600; /* Bolder */
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: var(--primary-color, #3498db); /* Use primary color */
+            animation: spin 1s ease infinite;
+            margin: 0 auto 1.5rem auto; /* Center spinner, more space below */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Style for the static step list */
+        #progress-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.95rem;
+            color: #6c757d; /* Muted color for steps */
+            text-align: left; /* Align steps left */
+            max-width: 300px; /* Limit width */
+            margin-left: auto; /* Center the list block */
+            margin-right: auto;
+        }
+        #progress-steps li {
+            margin-bottom: 0.5rem;
+            padding-left: 1.5rem; /* Indent text */
+            position: relative;
+        }
+        /* Add a simple dot or checkmark - can be enhanced later */
+        #progress-steps li::before {
+            content: '•'; /* Simple bullet */
+            position: absolute;
+            left: 0;
+            color: #adb5bd; /* Muted bullet color */
+            font-weight: bold;
+        }
+
+         /* Area for error messages */
+         #error-message-area {
+            color: var(--danger, #dc3545);
+            font-weight: bold;
+            margin-top: 1rem;
+            background-color: #f8d7da; /* Light red background */
+            padding: 10px 15px;
+            border-radius: 4px;
+            display: none; /* Hidden by default */
+            border: 1px solid #f5c6cb; /* Red border */
+            text-align: center;
+        }
+        /* Style for datalist suggestions */
+        input[list] {
+            /* Add any specific styling if needed */
+        }
+
+    </style>
+</head>
 <body>
     <header>
         <div class="container">
             <nav>
-                <a href="{{ url_for('index') }}" class="logo"> <div class="logo-icon">
+                <a href="{{ url_for('index') }}" class="logo">
+                    <div class="logo-icon">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 2v20M2 12h20M2 7h7M2 17h7M15 7h7M15 17h7"></path>
                         </svg>
@@ -19,8 +94,8 @@
                 </a>
                 <ul class="nav-links">
                      <li><a href="{{ url_for('index') }}">Home</a></li>
-                     </ul>
-                </nav>
+                </ul>
+            </nav>
         </div>
     </header>
 
@@ -30,14 +105,39 @@
                 <h1>Smart Stock Predictions & Analysis</h1>
                 <p>Enter a stock ticker symbol (e.g., AAPL, MSFT) to generate an AI-powered analysis report.</p>
 
-                <form method="POST" action="{{ url_for('index') }}" class="ticker-form">
-                    <input type="text" name="ticker" placeholder="Enter Stock Ticker (e.g., AAPL)" required pattern="[A-Za-z]{1,5}" title="Enter 1-5 letters for the stock ticker." style="padding: 10px; width: 250px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem;">
+                <form id="ticker-form" class="ticker-form">
+                    <input type="text" id="ticker-input" name="ticker" list="ticker-suggestions" placeholder="Enter Stock Ticker (e.g., AAPL)" required pattern="[A-Za-z]{1,5}" title="Enter 1-5 letters for the stock ticker." style="padding: 10px; width: 250px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem;" autocomplete="off">
+                    <datalist id="ticker-suggestions">
+                        <option value="AAPL">
+                        <option value="MSFT">
+                        <option value="GOOGL">
+                        <option value="AMZN">
+                        <option value="TSLA">
+                        <option value="NVDA">
+                        <option value="META">
+                    </datalist>
                     <button type="submit" class="btn btn-primary" style="margin-left: 10px;">Generate Report</button>
                 </form>
-                {% if error %}
-                    <p style="color: var(--danger); margin-top: 1rem; background-color: rgba(255,255,255,0.8); padding: 5px; border-radius: 4px;">Error: {{ error }}</p>
-                {% endif %}
-                 </div>
+
+                <div id="progress-indicator">
+                    <p id="progress-main-message">Generating report, please wait...</p>
+                    <div class="spinner"></div>
+                    <ul id="progress-steps">
+                        <li>Fetching historical data...</li>
+                        <li>Fetching macroeconomic data...</li>
+                        <li>Preprocessing data...</li>
+                        <li>Training prediction model...</li>
+                        <li>Fetching fundamentals...</li>
+                        <li>Generating report sections...</li>
+                        <li>Finalizing...</li>
+                    </ul>
+                    <p id="timer-message" style="font-size: 0.85rem; margin-top: 1rem; color: #6c757d;">Calculating duration...</p>
+                </div>
+
+                 <div id="error-message-area">
+                     </div>
+
+            </div>
             <div class="hero-chart">
                  <svg width="100%" height="250" viewBox="0 0 500 250">
                     <rect x="0" y="0" width="500" height="250" fill="none" />
@@ -54,57 +154,140 @@
         </div>
     </section>
 
-     <section class="features">
+    <section class="features">
         <div class="container">
-            <div class="section-title">
-                <h2>Powerful Stock Analysis Tools</h2>
-                <p>Our advanced platform provides everything you need to make informed investment decisions</p>
-            </div>
-            <div class="feature-grid">
-                <div class="feature-card">
-                    <div class="feature-icon"> <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline> </svg> </div>
-                    <h3>Price Prediction</h3> <p>AI-powered algorithms predict stock movements with remarkable accuracy based on historical data and market trends.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon"> <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <circle cx="12" cy="12" r="10"></circle> <line x1="12" y1="16" x2="12" y2="12"></line> <line x1="12" y1="8" x2="12.01" y2="8"></line> </svg> </div>
-                    <h3>Technical Analysis</h3> <p>Comprehensive technical indicators and pattern recognition to identify potential entry and exit points.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon"> <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect> <line x1="8" y1="21" x2="16" y2="21"></line> <line x1="12" y1="17" x2="12" y2="21"></line> </svg> </div>
-                    <h3>Real-time Updates</h3> <p>Stay informed with real-time market data, news alerts, and price notifications for your watchlist.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-    <section class="trending-stocks">
-         <div class="container">
-             <div class="section-title"> <h2>Trending Stocks</h2> <p>Top-performing stocks with our analysis and predictions</p> </div>
-             <div class="stock-grid">
-                 <div class="stock-card"> <div class="stock-header"> <div class="stock-name">Apple Inc.</div> <div class="stock-symbol">AAPL</div> </div> <div class="stock-price">$187.54</div> <div class="stock-change up"> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="18 15 12 9 6 15"></polyline> </svg> <span>2.4%</span> </div> <p>Prediction: Strong Buy</p> </div>
-                 <div class="stock-card"> <div class="stock-header"> <div class="stock-name">Tesla Inc.</div> <div class="stock-symbol">TSLA</div> </div> <div class="stock-price">$263.21</div> <div class="stock-change up"> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="18 15 12 9 6 15"></polyline> </svg> <span>4.7%</span> </div> <p>Prediction: Buy</p> </div>
-                 <div class="stock-card"> <div class="stock-header"> <div class="stock-name">Microsoft Corp.</div> <div class="stock-symbol">MSFT</div> </div> <div class="stock-price">$342.78</div> <div class="stock-change up"> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="18 15 12 9 6 15"></polyline> </svg> <span>1.8%</span> </div> <p>Prediction: Strong Buy</p> </div>
-                 <div class="stock-card"> <div class="stock-header"> <div class="stock-name">Netflix Inc.</div> <div class="stock-symbol">NFLX</div> </div> <div class="stock-price">$478.36</div> <div class="stock-change down"> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="6 9 12 15 18 9"></polyline> </svg> <span>0.6%</span> </div> <p>Prediction: Hold</p> </div>
+             <div class="section-title">
+                 <h2>Powerful Stock Analysis Tools</h2>
+                 <p>Our advanced platform provides everything you need to make informed investment decisions</p>
+             </div>
+             <div class="feature-grid">
+                 <div class="feature-card"> <div class="feature-icon"> <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline> </svg> </div> <h3>Price Prediction</h3> <p>AI-powered algorithms predict stock movements with remarkable accuracy based on historical data and market trends.</p> </div>
+                 <div class="feature-card"> <div class="feature-icon"> <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <circle cx="12" cy="12" r="10"></circle> <line x1="12" y1="16" x2="12" y2="12"></line> <line x1="12" y1="8" x2="12.01" y2="8"></line> </svg> </div> <h3>Technical Analysis</h3> <p>Comprehensive technical indicators and pattern recognition to identify potential entry and exit points.</p> </div>
+                 <div class="feature-card"> <div class="feature-icon"> <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect> <line x1="8" y1="21" x2="16" y2="21"></line> <line x1="12" y1="17" x2="12" y2="21"></line> </svg> </div> <h3>Real-time Updates</h3> <p>Stay informed with real-time market data, news alerts, and price notifications for your watchlist.</p> </div>
              </div>
          </div>
     </section>
-    <section class="cta"> <div class="container"> <h2>Ready to Make Smarter Investment Decisions?</h2> <p>Join thousands of investors who trust our platform for accurate predictions and in-depth market analysis.</p> <a href="#" class="btn btn-cta">Get Started For Free</a> </div> </section>
+    <section class="trending-stocks">
+         <div class="container">
+              <div class="section-title"> <h2>Trending Stocks</h2> <p>Top-performing stocks with our analysis and predictions</p> </div>
+              <div class="stock-grid">
+                  <div class="stock-card"> <div class="stock-header"> <div class="stock-name">Apple Inc.</div> <div class="stock-symbol">AAPL</div> </div> <div class="stock-price">$187.54</div> <div class="stock-change up"> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="18 15 12 9 6 15"></polyline> </svg> <span>2.4%</span> </div> <p>Prediction: Strong Buy</p> </div>
+                  <div class="stock-card"> <div class="stock-header"> <div class="stock-name">Tesla Inc.</div> <div class="stock-symbol">TSLA</div> </div> <div class="stock-price">$263.21</div> <div class="stock-change up"> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="18 15 12 9 6 15"></polyline> </svg> <span>4.7%</span> </div> <p>Prediction: Buy</p> </div>
+                  <div class="stock-card"> <div class="stock-header"> <div class="stock-name">Microsoft Corp.</div> <div class="stock-symbol">MSFT</div> </div> <div class="stock-price">$342.78</div> <div class="stock-change up"> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="18 15 12 9 6 15"></polyline> </svg> <span>1.8%</span> </div> <p>Prediction: Strong Buy</p> </div>
+                  <div class="stock-card"> <div class="stock-header"> <div class="stock-name">Netflix Inc.</div> <div class="stock-symbol">NFLX</div> </div> <div class="stock-price">$478.36</div> <div class="stock-change down"> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <polyline points="6 9 12 15 18 9"></polyline> </svg> <span>0.6%</span> </div> <p>Prediction: Hold</p> </div>
+              </div>
+          </div>
+    </section>
+    <section class="cta">
+        <div class="container"> <h2>Ready to Make Smarter Investment Decisions?</h2> <p>Join thousands of investors who trust our platform for accurate predictions and in-depth market analysis.</p> <a href="#" class="btn btn-cta">Get Started For Free</a> </div>
+    </section>
 
     <footer>
         <div class="container">
-            <div class="footer-grid">
-                <div class="footer-about">
-                    <div class="footer-logo">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; color: #10ac84;"> <path d="M12 2v20M2 12h20M2 7h7M2 17h7M15 7h7M15 17h7"></path> </svg>
-                        Stock<span>Insight</span>
-                    </div>
-                    <p>Providing data-driven stock market predictions and analysis to help you maximize your investment returns.</p>
-                </div>
-                <div class="footer-links"> <h4>Products</h4> <ul> <li><a href="#">Stock Predictions</a></li> <li><a href="#">Market Analysis</a></li> <li><a href="#">Portfolio Tracker</a></li> <li><a href="#">Research Tools</a></li> </ul> </div>
-                <div class="footer-links"> <h4>Company</h4> <ul> <li><a href="#">About Us</a></li> <li><a href="#">Our Team</a></li> <li><a href="#">Careers</a></li> <li><a href="#">Contact</a></li> </ul> </div>
-                <div class="footer-links"> <h4>Resources</h4> <ul> <li><a href="#">Blog</a></li> <li><a href="#">News</a></li> <li><a href="#">Help Center</a></li> <li><a href="#">FAQs</a></li> </ul> </div>
-            </div>
-            <div class="copyright"> <p>&copy; 2025 StockInsight. All rights reserved.</p> </div>
-        </div>
+             <div class="footer-grid">
+                 <div class="footer-about"> <div class="footer-logo"> <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; color: #10ac84;"> <path d="M12 2v20M2 12h20M2 7h7M2 17h7M15 7h7M15 17h7"></path> </svg> Stock<span>Insight</span> </div> <p>Providing data-driven stock market predictions and analysis to help you maximize your investment returns.</p> </div>
+                 <div class="footer-links"> <h4>Products</h4> <ul> <li><a href="#">Stock Predictions</a></li> <li><a href="#">Market Analysis</a></li> <li><a href="#">Portfolio Tracker</a></li> <li><a href="#">Research Tools</a></li> </ul> </div>
+                 <div class="footer-links"> <h4>Company</h4> <ul> <li><a href="#">About Us</a></li> <li><a href="#">Our Team</a></li> <li><a href="#">Careers</a></li> <li><a href="#">Contact</a></li> </ul> </div>
+                 <div class="footer-links"> <h4>Resources</h4> <ul> <li><a href="#">Blog</a></li> <li><a href="#">News</a></li> <li><a href="#">Help Center</a></li> <li><a href="#">FAQs</a></li> </ul> </div>
+             </div>
+             <div class="copyright"> <p>&copy; 2025 StockInsight. All rights reserved.</p> </div>
+         </div>
     </footer>
+
+    <script>
+        // --- JavaScript for Async Form Submission, Progress, and Redirection ---
+        const tickerForm = document.getElementById('ticker-form');
+        const tickerInput = document.getElementById('ticker-input');
+        const progressIndicator = document.getElementById('progress-indicator');
+        const progressMainMessage = document.getElementById('progress-main-message');
+        const timerMessage = document.getElementById('timer-message');
+        const errorMessageArea = document.getElementById('error-message-area');
+
+        tickerForm.addEventListener('submit', async (event) => {
+            event.preventDefault(); // Prevent default synchronous form submission
+
+            const ticker = tickerInput.value.trim().toUpperCase();
+
+            // Basic validation
+            if (!ticker || !/^[A-Z]{1,5}$/.test(ticker)) {
+                errorMessageArea.textContent = 'Invalid ticker symbol. Please enter 1-5 letters.';
+                errorMessageArea.style.display = 'block';
+                progressIndicator.style.display = 'none'; // Hide progress
+                return;
+            }
+
+            // Clear previous errors and show progress
+            errorMessageArea.textContent = '';
+            errorMessageArea.style.display = 'none';
+            progressMainMessage.textContent = `Generating report for ${ticker}, please wait...`; // Update message
+            timerMessage.textContent = 'Calculating duration...'; // Reset timer message
+            progressIndicator.style.display = 'block'; // Show progress indicator (with steps)
+
+            try {
+                // Make asynchronous call to the backend /generate endpoint
+                const response = await fetch("{{ url_for('generate_report') }}", { // Use url_for
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ ticker: ticker })
+                });
+
+                 // Don't hide progress indicator yet - wait for redirect or error
+
+                // Check if the request was successful (status code 2xx)
+                if (response.ok) {
+                    const result = await response.json(); // Parse JSON response
+
+                    // **** DEBUGGING: Log the received result object ****
+                    console.log("Received result from backend:", result);
+                    console.log("Result status:", result.status);
+                    console.log("Report URL:", result.report_url);
+                    console.log("Duration:", result.duration);
+                    // ***************************************************
+
+                    // Check the result status and if report_url exists
+                    if (result.status === 'success' && result.report_url) {
+                        // --- SUCCESS: Redirect to the report page ---
+                        timerMessage.textContent = `Report generated in ${result.duration || 'N/A'} seconds. Redirecting...`;
+                        console.log(`Report for ${result.ticker} generated. Redirecting to: ${result.report_url}`);
+                        // Perform the redirection
+                        window.location.href = result.report_url;
+                        // Progress indicator will disappear automatically on page navigation
+
+                    } else {
+                        // Handle cases where backend reported an error OR status/url was missing
+                         progressIndicator.style.display = 'none'; // Hide progress on error
+                        const message = result.message || 'An unknown error occurred during report generation (unexpected response).';
+                        errorMessageArea.textContent = `Error: ${message}`;
+                        errorMessageArea.style.display = 'block'; // Show error message area
+                        console.error('Report generation failed (server-side or unexpected response):', message, result); // Log full result on error
+                    }
+                } else {
+                    // Handle HTTP errors (like 400, 404, 500)
+                     progressIndicator.style.display = 'none'; // Hide progress on error
+                    let message = `HTTP error ${response.status}: ${response.statusText}`;
+                    try {
+                         // Try to parse error message from backend if available
+                         const errorResult = await response.json();
+                         message = errorResult.message || message;
+                          console.error('HTTP Error Response Body:', errorResult); // Log error body
+                    } catch (e) { /* Ignore if response wasn't JSON */ }
+                    errorMessageArea.textContent = `Error: ${message}`;
+                    errorMessageArea.style.display = 'block'; // Show error message area
+                    console.error('Report generation failed (HTTP error):', message);
+                }
+
+            } catch (error) {
+                // Handle network errors or other issues with the fetch call itself
+                progressIndicator.style.display = 'none'; // Hide progress on error
+                errorMessageArea.textContent = `Network error or issue connecting to the server: ${error.message}`;
+                errorMessageArea.style.display = 'block'; // Show error message area
+                console.error('Report generation failed (network/fetch error):', error);
+            }
+        });
+    </script>
+
 </body>
 </html>
