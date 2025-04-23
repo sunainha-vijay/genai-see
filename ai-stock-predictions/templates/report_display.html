@@ -4,13 +4,17 @@
 
 {% block head_scripts %}
     <style>
+        /* Container for the entire report view */
         .report-viewer-container {
-            padding: 1rem; /* Add some padding around the controls/iframe */
-            background-color: #f4f7f6; /* Match body background perhaps */
+            padding: 1rem 0; /* Remove horizontal padding, vertical padding optional */
+            background-color: #ffffff; /* White background for the content area */
         }
+
+        /* Controls section */
         .report-controls {
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
+            max-width: 1200px; /* Match report content width */
+            margin: 0 auto 1.5rem auto; /* Center controls, add bottom margin */
+            padding: 0 1rem; /* Add some horizontal padding inside controls */
             border-bottom: 1px solid #dee2e6;
             display: flex;
             justify-content: space-between;
@@ -18,18 +22,33 @@
         }
          .report-controls h2 {
              margin: 0;
+             padding-bottom: 0.5rem; /* Space below heading */
              font-size: 1.8rem;
              color: #34495e;
          }
-        .report-iframe {
+
+        /* Placeholder for the fetched report content */
+        #report-content-area {
             width: 100%;
-            /* Calculate height: 100vh - header height - footer height - controls height - padding */
-            /* Adjust '180px' based on your actual header/footer/controls height */
-            height: calc(100vh - 180px);
-            border: 1px solid #ccc; /* Optional border for the iframe */
-            background-color: #fff; /* Background while loading */
+            min-height: 70vh; /* Ensure it takes significant height */
+            background-color: #fff; /* White background */
+            /* The content loaded will have its own max-width from report_generator.py */
         }
-         /* Basic styling for the button */
+        #report-content-area .loading-message {
+            text-align: center;
+            padding: 4rem 1rem;
+            font-size: 1.2rem;
+            color: #6c757d;
+        }
+         #report-content-area .error-message {
+            text-align: center;
+            padding: 4rem 1rem;
+            font-size: 1.1rem;
+            color: #dc3545;
+             font-weight: 500;
+        }
+
+         /* Style for the back button */
         .btn-back {
             display: inline-block;
             padding: 8px 16px;
@@ -52,21 +71,82 @@
 {% endblock %}
 
 {% block content %}
-<div class="container report-viewer-container">
+<div class="report-viewer-container">
     <div class="report-controls">
          <h2>Analysis Report: {{ ticker | upper }}</h2>
         <a href="{{ url_for('index') }}" class="btn-back">Generate New Report</a>
     </div>
 
-    {% if report_url %}
-        <iframe src="{{ report_url }}" class="report-iframe" title="Stock Analysis Report for {{ ticker | upper }}">
-            Your browser doesn't support iframes. Please access the report directly: <a href="{{ report_url }}" target="_blank">Report Link</a>
-        </iframe>
-    {% else %}
-        <p style="color: red; text-align: center; margin-top: 2rem;">Could not load the report. Please try generating it again.</p>
-    {% endif %}
+    <div id="report-content-area">
+        <p class="loading-message">Loading report content...</p>
+    </div>
+
 </div>
 {% endblock %}
 
 {% block body_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const reportContentArea = document.getElementById('report-content-area');
+        // Get the report URL from the query parameters passed by Flask
+        const reportUrl = "{{ report_url }}"; // Jinja templating inserts the URL
+
+        if (reportUrl && reportUrl !== 'None') { // Check if URL is valid
+            fetch(reportUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error ${response.status} when fetching report.`);
+                    }
+                    return response.text(); // Get the HTML content as text
+                })
+                .then(html => {
+                    // Inject the fetched HTML into the content area
+                    // This replaces the "Loading..." message
+                    reportContentArea.innerHTML = html;
+
+                    // IMPORTANT: Re-run Plotly rendering for charts within the loaded content
+                    // Find all script tags within the loaded content that might contain Plotly.newPlot calls
+                    // Or, more simply, assume the report structure includes Plotly charts and just call render
+                    if (typeof Plotly !== 'undefined') {
+                       // Find all Plotly graph divs and render them
+                        const plotlyDivs = reportContentArea.querySelectorAll('.plotly-graph-div');
+                        plotlyDivs.forEach(div => {
+                            // This part is tricky as the plot data/layout is usually in a script tag.
+                            // A better approach in report_generator.py would be to store
+                            // JSON data in data attributes and use JS here to render.
+                            // For now, we rely on the script tags within the loaded HTML
+                            // potentially executing, or we might need a more complex solution.
+                            // Let's try finding and executing <script> tags within the injected content.
+                             const scripts = div.closest('.section').querySelectorAll('script');
+                             scripts.forEach(script => {
+                                 // Avoid re-running the main Plotly library script
+                                if (!script.src.includes('plotly-latest.min.js')) {
+                                    // Creating a new script element and appending forces execution
+                                    const newScript = document.createElement('script');
+                                    newScript.textContent = script.textContent;
+                                    // Append to body or head to ensure execution context
+                                    document.body.appendChild(newScript);
+                                    // Clean up the appended script tag after execution (optional)
+                                    // setTimeout(() => document.body.removeChild(newScript), 0);
+                                }
+                             });
+                        });
+                        // Fallback: Sometimes Plotly might just need a resize trigger after dynamic load
+                         window.dispatchEvent(new Event('resize'));
+                         console.log("Attempted to find and potentially re-render Plotly charts.");
+                    } else {
+                         console.warn("Plotly library not found. Charts might not render correctly.");
+                    }
+
+                })
+                .catch(error => {
+                    console.error('Error fetching or loading report content:', error);
+                    reportContentArea.innerHTML = `<p class="error-message">Failed to load report content. Error: ${error.message}</p>`;
+                });
+        } else {
+            reportContentArea.innerHTML = '<p class="error-message">Could not load the report: Invalid report URL provided.</p>';
+            console.error("Invalid or missing report_url:", reportUrl);
+        }
+    });
+</script>
 {% endblock %}

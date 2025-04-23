@@ -25,7 +25,7 @@
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            border-left-color: var(--primary-color, #3498db); /* Use primary color */
+            border-left-color: var(--secondary, #2e86de); /* Use secondary color with fallback */
             animation: spin 1s ease infinite;
             margin: 0 auto 1.5rem auto; /* Center spinner, more space below */
         }
@@ -33,31 +33,55 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        /* Style for the static step list */
+        /* Style for the dynamic step list */
         #progress-steps {
             list-style: none;
             padding: 0;
-            margin: 0;
+            margin: 0 auto 1rem auto; /* Center list block */
             font-size: 0.95rem;
             color: #6c757d; /* Muted color for steps */
             text-align: left; /* Align steps left */
             max-width: 300px; /* Limit width */
-            margin-left: auto; /* Center the list block */
-            margin-right: auto;
         }
         #progress-steps li {
-            margin-bottom: 0.5rem;
-            padding-left: 1.5rem; /* Indent text */
+            margin-bottom: 0.7rem; /* Increased spacing */
+            padding-left: 2rem; /* More indent for icon */
             position: relative;
+            opacity: 0.6; /* Default muted state */
+            transition: opacity 0.3s ease, color 0.3s ease;
         }
-        /* Add a simple dot or checkmark - can be enhanced later */
+        #progress-steps li.active {
+            color: #343a40; /* Darker text when active */
+            font-weight: 500;
+            opacity: 1;
+        }
+        #progress-steps li.completed {
+            color: #28a745; /* Green when completed */
+            font-weight: 500;
+            opacity: 1;
+        }
+        /* Icon styling */
         #progress-steps li::before {
-            content: '•'; /* Simple bullet */
+            content: '⏳'; /* Pending icon */
             position: absolute;
             left: 0;
-            color: #adb5bd; /* Muted bullet color */
-            font-weight: bold;
+            font-size: 1.1em;
+            line-height: 1;
+            transition: content 0.3s ease;
         }
+        #progress-steps li.active::before {
+            content: '⚙️'; /* Active icon */
+            animation: spin-step 1.5s linear infinite; /* Subtle spin for active */
+        }
+        #progress-steps li.completed::before {
+            content: '✅'; /* Completed icon */
+            animation: none; /* Stop animation */
+        }
+        @keyframes spin-step {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
          /* Area for error messages */
          #error-message-area {
             color: var(--danger, #dc3545);
@@ -70,8 +94,14 @@
             border: 1px solid #f5c6cb; /* Red border */
             text-align: center;
         }
-        /* Style for datalist suggestions */
-        /* Removed empty ruleset for input[list] */
+         /* Style for timer */
+        #timer-message {
+            font-size: 0.9rem;
+            margin-top: 1.5rem;
+            color: #495057; /* Slightly darker grey */
+            font-weight: 500;
+        }
+
     </style>
 {% endblock %}
 
@@ -93,26 +123,25 @@
                         <option value="NVDA">
                         <option value="META">
                     </datalist>
-                    <button type="submit" class="btn btn-primary" style="margin-left: 10px;">Generate Report</button>
+                    <button type="submit" id="generate-button" class="btn btn-primary" style="margin-left: 10px;">Generate Report</button>
                 </form>
 
                 <div id="progress-indicator">
                     <p id="progress-main-message">Generating report, please wait...</p>
                     <div class="spinner"></div>
                     <ul id="progress-steps">
-                        <li>Fetching historical data...</li>
-                        <li>Fetching macroeconomic data...</li>
-                        <li>Preprocessing data...</li>
-                        <li>Training prediction model...</li>
-                        <li>Fetching fundamentals...</li>
-                        <li>Generating report sections...</li>
-                        <li>Finalizing...</li>
+                        <li id="step-fetch-hist">Fetching historical data...</li>
+                        <li id="step-fetch-macro">Fetching macroeconomic data...</li>
+                        <li id="step-preprocess">Preprocessing data...</li>
+                        <li id="step-train">Training prediction model...</li>
+                        <li id="step-fetch-fund">Fetching fundamentals...</li>
+                        <li id="step-generate">Generating report sections...</li>
+                        <li id="step-finalize">Finalizing...</li>
                     </ul>
-                    <p id="timer-message" style="font-size: 0.85rem; margin-top: 1rem; color: #6c757d;">Calculating duration...</p>
+                    <p id="timer-message">Time taken: 0 sec</p>
                 </div>
 
-                 <div id="error-message-area">
-                     </div>
+                 <div id="error-message-area"></div>
 
             </div>
             <div class="hero-chart">
@@ -162,13 +191,64 @@
 
 {% block body_scripts %}
     <script>
-        // --- JavaScript for Async Form Submission, Progress, and Redirection ---
+        // --- JavaScript for Async Form Submission, Progress, Timer, and Redirection ---
         const tickerForm = document.getElementById('ticker-form');
         const tickerInput = document.getElementById('ticker-input');
+        const generateButton = document.getElementById('generate-button');
         const progressIndicator = document.getElementById('progress-indicator');
         const progressMainMessage = document.getElementById('progress-main-message');
+        const progressSteps = document.getElementById('progress-steps').querySelectorAll('li');
         const timerMessage = document.getElementById('timer-message');
         const errorMessageArea = document.getElementById('error-message-area');
+
+        let timerInterval = null;
+        let secondsElapsed = 0;
+
+        // Function to update timer
+        function updateTimer() {
+            secondsElapsed++;
+            timerMessage.textContent = `Time taken: ${secondsElapsed} sec`;
+        }
+
+        // Function to update progress steps
+        function updateStep(stepIndex, status) {
+            if (stepIndex < progressSteps.length) {
+                // Remove previous status classes
+                progressSteps[stepIndex].classList.remove('active', 'completed');
+                if (status === 'active') {
+                    progressSteps[stepIndex].classList.add('active');
+                    // Mark previous steps as completed
+                    for (let i = 0; i < stepIndex; i++) {
+                        progressSteps[i].classList.remove('active');
+                        progressSteps[i].classList.add('completed');
+                    }
+                } else if (status === 'completed') {
+                    progressSteps[stepIndex].classList.add('completed');
+                     // Ensure all previous steps are also marked completed
+                    for (let i = 0; i <= stepIndex; i++) {
+                        progressSteps[i].classList.remove('active');
+                        progressSteps[i].classList.add('completed');
+                    }
+                }
+            }
+        }
+
+        // Function to reset progress display
+        function resetProgress() {
+            progressSteps.forEach(step => {
+                step.classList.remove('active', 'completed');
+            });
+            timerMessage.textContent = 'Time taken: 0 sec';
+            secondsElapsed = 0;
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            progressIndicator.style.display = 'none';
+            errorMessageArea.style.display = 'none';
+            generateButton.disabled = false; // Re-enable button
+            generateButton.textContent = 'Generate Report';
+        }
 
         tickerForm.addEventListener('submit', async (event) => {
             event.preventDefault(); // Prevent default synchronous form submission
@@ -183,15 +263,39 @@
                 return;
             }
 
-            // Clear previous errors and show progress
-            errorMessageArea.textContent = '';
-            errorMessageArea.style.display = 'none';
+            // Reset previous state and show progress
+            resetProgress(); // Reset timer, steps, errors
             progressMainMessage.textContent = `Generating report for ${ticker}, please wait...`; // Update message
-            timerMessage.textContent = 'Calculating duration...'; // Reset timer message
-            progressIndicator.style.display = 'block'; // Show progress indicator (with steps)
+            progressIndicator.style.display = 'block'; // Show progress indicator
+            generateButton.disabled = true; // Disable button during generation
+            generateButton.textContent = 'Generating...';
+
+            // Start timer
+            secondsElapsed = 0; // Reset timer count
+            timerMessage.textContent = `Time taken: ${secondsElapsed} sec`; // Show 0 sec initially
+            timerInterval = setInterval(updateTimer, 1000);
+
+            // --- Simulate Step Progress (as frontend can't directly see backend logs) ---
+            // This gives visual feedback even before the fetch completes.
+            // Adjust timings as needed to approximate backend process flow.
+            updateStep(0, 'active'); // Fetching hist active
+            await new Promise(resolve => setTimeout(resolve, 700)); // Simulate time
+            updateStep(1, 'active'); // Fetching macro active
+            await new Promise(resolve => setTimeout(resolve, 700));
+            updateStep(2, 'active'); // Preprocessing active
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            updateStep(3, 'active'); // Training active
+             await new Promise(resolve => setTimeout(resolve, 1500)); // Training might take longer
+             updateStep(4, 'active'); // Fetching fund active
+             await new Promise(resolve => setTimeout(resolve, 700));
+             updateStep(5, 'active'); // Generating sections active
+             await new Promise(resolve => setTimeout(resolve, 1000));
+             updateStep(6, 'active'); // Finalizing active
+            // ------------------------------------------------------------------------
 
             try {
                 // Make asynchronous call to the backend /generate endpoint
+                const startTime = performance.now(); // More accurate duration measure
                 const response = await fetch("{{ url_for('generate_report') }}", { // Use url_for
                     method: 'POST',
                     headers: {
@@ -201,34 +305,41 @@
                     body: JSON.stringify({ ticker: ticker })
                 });
 
-                // Don't hide progress indicator yet - wait for redirect or error
+                // Stop timer when response is received (success or error)
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                 const endTime = performance.now();
+                 const preciseDuration = ((endTime - startTime) / 1000).toFixed(2); // Calculate precise duration
 
                 // Check if the request was successful (status code 2xx)
                 if (response.ok) {
                     const result = await response.json(); // Parse JSON response
-
-                    // Log the received result object for debugging
                     console.log("Received result from backend:", result);
 
-                    // Check the result status and if viewer_url exists
                     if (result.status === 'success' && result.viewer_url) {
-                        // --- SUCCESS: Redirect to the report viewer page ---
-                        timerMessage.textContent = `Report generated in ${result.duration || 'N/A'} seconds. Redirecting...`;
-                        console.log(`Report for ${result.ticker} generated. Redirecting to viewer: ${result.viewer_url}`);
-                        // Perform the redirection to the viewer page
-                        window.location.href = result.viewer_url;
+                        // --- SUCCESS ---
+                        updateStep(6, 'completed'); // Mark final step completed
+                        timerMessage.textContent = `Report generated! Total time: ${preciseDuration} seconds. Redirecting...`; // Use precise duration
+                        progressMainMessage.textContent = `Report for ${result.ticker} ready!`;
+                        // Optional: keep progress visible briefly before redirect
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        console.log(`Redirecting to viewer: ${result.viewer_url}`);
+                        window.location.href = result.viewer_url; // Redirect
 
                     } else {
-                        // Handle cases where backend reported an error OR viewer_url was missing
-                         progressIndicator.style.display = 'none'; // Hide progress on error
+                        // --- BACKEND ERROR ---
                         const message = result.message || 'An unknown error occurred (unexpected response).';
                         errorMessageArea.textContent = `Error: ${message}`;
-                        errorMessageArea.style.display = 'block'; // Show error message area
+                        errorMessageArea.style.display = 'block';
+                        progressIndicator.style.display = 'none'; // Hide progress on error
                         console.error('Report generation failed (server-side or unexpected response):', result);
+                        generateButton.disabled = false; // Re-enable button
+                         generateButton.textContent = 'Generate Report';
                     }
                 } else {
-                    // Handle HTTP errors
-                     progressIndicator.style.display = 'none'; // Hide progress on error
+                    // --- HTTP ERROR ---
                     let message = `HTTP error ${response.status}: ${response.statusText}`;
                     try {
                          const errorResult = await response.json();
@@ -237,15 +348,24 @@
                     } catch (e) { /* Ignore if response wasn't JSON */ }
                     errorMessageArea.textContent = `Error: ${message}`;
                     errorMessageArea.style.display = 'block';
+                    progressIndicator.style.display = 'none'; // Hide progress on error
                     console.error('Report generation failed (HTTP error):', message);
+                    generateButton.disabled = false; // Re-enable button
+                    generateButton.textContent = 'Generate Report';
                 }
 
             } catch (error) {
-                // Handle network errors
-                progressIndicator.style.display = 'none'; // Hide progress on error
+                // --- NETWORK/FETCH ERROR ---
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
                 errorMessageArea.textContent = `Network error or issue connecting to the server: ${error.message}`;
                 errorMessageArea.style.display = 'block';
+                progressIndicator.style.display = 'none'; // Hide progress on error
                 console.error('Report generation failed (network/fetch error):', error);
+                generateButton.disabled = false; // Re-enable button
+                generateButton.textContent = 'Generate Report';
             }
         });
     </script>
