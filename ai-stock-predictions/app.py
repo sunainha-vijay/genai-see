@@ -1,10 +1,10 @@
 # app.py
-from flask import Flask, render_template, request, send_from_directory, jsonify, url_for, request # Added request
+from flask import Flask, render_template, request, send_from_directory, jsonify, url_for, request # Keep request
 import os
 import time
 import traceback
 from pipeline import run_pipeline
-from urllib.parse import urljoin # Import urljoin
+from urllib.parse import urljoin, quote # Import quote for query parameters
 
 # --- Get the absolute path to the directory where app.py is located ---
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -19,12 +19,7 @@ app = Flask(__name__,
 app.jinja_env.globals.update(zip=zip)
 
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0 # Disable caching for static files during dev
-app.secret_key = os.urandom(24) # For session management if needed later
-# --- Optional: Set SERVER_NAME if you want to use url_for with _external=True reliably ---
-# --- Replace with your actual domain/IP and port if not running locally on 5000 ---
-# app.config['SERVER_NAME'] = '127.0.0.1:5000'
-# app.config['APPLICATION_ROOT'] = '/' # Adjust if running under a subpath
-# app.config['PREFERRED_URL_SCHEME'] = 'http' # or 'https' if applicable
+app.secret_key = os.urandom(24) # Needed if using session, good practice anyway
 
 # Ensure the static directory exists
 os.makedirs(STATIC_FOLDER_PATH, exist_ok=True)
@@ -43,11 +38,21 @@ def index():
     """Serves the main homepage."""
     return render_template('stock-analysis-homepage.html')
 
+# --- NEW ROUTE ---
+@app.route('/report/view')
+def show_report_page():
+    """Renders the report viewer page, displaying the report via iframe."""
+    report_url = request.args.get('url') # Get report file URL from query param
+    ticker = request.args.get('ticker', 'Unknown') # Get ticker for title
+    # Basic validation/sanitization for URL might be needed in production
+    return render_template('report_display.html', report_url=report_url, ticker=ticker)
+# --- END NEW ROUTE ---
+
 @app.route('/generate', methods=['POST'])
 def generate_report():
     """
     Handles the asynchronous request to generate the stock analysis report.
-    Returns a JSON response with the status and either the *absolute* report URL or an error message.
+    Returns a JSON response with the status and the URL to the viewer page.
     """
     start_time = time.time()
     print("\n--- Received /generate request ---")
@@ -72,6 +77,8 @@ def generate_report():
         pipeline_result = run_pipeline(ticker, timestamp, APP_ROOT)
 
         report_path = None
+        # Assuming pipeline returns (model, forecast, report_path, report_html)
+        # We only need report_path here
         if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 3:
             report_path = pipeline_result[2]
 
@@ -83,26 +90,22 @@ def generate_report():
 
             report_filename = os.path.basename(report_path)
 
-            # --- Generate Absolute URL ---
-            # Method 1: Using url_for with _external=True (Requires SERVER_NAME config)
-            # report_url_absolute = url_for('serve_static', filename=report_filename, _external=True)
+            # --- Generate URL for the static report file itself ---
+            # Use relative URL is fine as iframe src will resolve it
+            report_file_url = url_for('serve_static', filename=report_filename, _external=False)
+            print(f"Generated static report file URL: {report_file_url}")
 
-            # Method 2: Manually construct using request context (More flexible if SERVER_NAME isn't set)
-            # Get the base URL (scheme, host, port) from the incoming request
-            # Note: request.url_root might include subpaths if accessed via proxy, handle carefully.
-            # For simplicity, let's assume direct access or proxy handles path correctly.
-            base_url = request.url_root # e.g., "http://127.0.0.1:5000/" or "http://example.com/myapp/"
-            relative_url = url_for('serve_static', filename=report_filename) # e.g., "/static/report.html"
-            # Use urljoin to correctly combine base and relative path
-            report_url_absolute = urljoin(base_url, relative_url)
+            # --- Generate URL for the viewer page, passing the report file URL as query param ---
+            # Make sure to URL-encode the report_file_url when adding it as a parameter
+            viewer_url = url_for('show_report_page', ticker=ticker, url=report_file_url, _external=False)
+            print(f"Generated viewer page URL: {viewer_url}")
 
-            print(f"Generated absolute report URL: {report_url_absolute}")
 
-            # --- Return the ABSOLUTE URL in the JSON response ---
+            # --- Return the VIEWER URL in the JSON response ---
             return jsonify({
                 'status': 'success',
                 'ticker': ticker,
-                'report_url': report_url_absolute, # Send the ABSOLUTE URL for redirection
+                'viewer_url': viewer_url, # Send URL of the page that *contains* the iframe
                 'duration': f"{duration:.2f}"
             })
         else:
@@ -111,21 +114,6 @@ def generate_report():
             return jsonify({'status': 'error', 'message': error_message}), 500
 
     # --- Exception Handling (Keep as before) ---
-    except FileNotFoundError as e:
-         print(f"Error - File Not Found: {e}")
-         traceback.print_exc()
-         error_message = f"Report generation process failed: Could not find a necessary file. Please check server logs."
-         return jsonify({'status': 'error', 'message': error_message}), 500
-    except ValueError as e:
-         print(f"Error - Value Error (e.g., bad data/ticker): {e}")
-         traceback.print_exc()
-         user_error_message = f"Report generation failed for {ticker}: {str(e)}. Check if the ticker is valid or try again later."
-         return jsonify({'status': 'error', 'message': user_error_message}), 400
-    except RuntimeError as e:
-         print(f"Error - Runtime Error in pipeline: {e}")
-         traceback.print_exc()
-         error_message = f"An internal error occurred during report generation: {str(e)}. Please check server logs."
-         return jsonify({'status': 'error', 'message': error_message}), 500
     except Exception as e:
          print(f"An unexpected error occurred: {e}")
          traceback.print_exc()
@@ -138,5 +126,4 @@ if __name__ == "__main__":
     print(f"Static Folder: {app.static_folder}")
     print(f"Template Folder: {app.template_folder}")
     print(f"Starting Flask server on http://0.0.0.0:5000")
-    # Make sure to access the app via http://127.0.0.1:5000 or http://<your-ip>:5000
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True) # Ensure port is 5000
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)

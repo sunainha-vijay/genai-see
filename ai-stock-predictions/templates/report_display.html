@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Report for {{ ticker | upper }}{% endblock %}
+
+{% block head_scripts %}
+    <style>
+        .report-viewer-container {
+            padding: 1rem; /* Add some padding around the controls/iframe */
+            background-color: #f4f7f6; /* Match body background perhaps */
+        }
+        .report-controls {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+         .report-controls h2 {
+             margin: 0;
+             font-size: 1.8rem;
+             color: #34495e;
+         }
+        .report-iframe {
+            width: 100%;
+            /* Calculate height: 100vh - header height - footer height - controls height - padding */
+            /* Adjust '180px' based on your actual header/footer/controls height */
+            height: calc(100vh - 180px);
+            border: 1px solid #ccc; /* Optional border for the iframe */
+            background-color: #fff; /* Background while loading */
+        }
+         /* Basic styling for the button */
+        .btn-back {
+            display: inline-block;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #fff;
+            background-color: #6c757d; /* Secondary color */
+            border: none;
+            border-radius: 4px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .btn-back:hover {
+            background-color: #5a6268;
+            color: #fff;
+            text-decoration: none;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container report-viewer-container">
+    <div class="report-controls">
+         <h2>Analysis Report: {{ ticker | upper }}</h2>
+        <a href="{{ url_for('index') }}" class="btn-back">Generate New Report</a>
+    </div>
+
+    {% if report_url %}
+        <iframe src="{{ report_url }}" class="report-iframe" title="Stock Analysis Report for {{ ticker | upper }}">
+            Your browser doesn't support iframes. Please access the report directly: <a href="{{ report_url }}" target="_blank">Report Link</a>
+        </iframe>
+    {% else %}
+        <p style="color: red; text-align: center; margin-top: 2rem;">Could not load the report. Please try generating it again.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+{% endblock %}

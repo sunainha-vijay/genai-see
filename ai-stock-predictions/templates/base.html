@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head_scripts %}{% endblock %}
+    <title>{% block title %}StockInsight{% endblock %}</title>
+    <style>
+        body { display: flex; flex-direction: column; min-height: 100vh; }
+        .main-content { flex-grow: 1; }
+        /* Add any other base styles here */
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <a href="{{ url_for('index') }}" class="logo"> <div class="logo-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v20M2 12h20M2 7h7M2 17h7M15 7h7M15 17h7"></path>
+                        </svg>
+                    </div>
+                    Stock<span>Insight</span>
+                </a>
+                <ul class="nav-links">
+                     <li><a href="{{ url_for('index') }}">Home</a></li>
+                     </ul>
+                </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <footer>
+        <div class="container">
+             <div class="footer-grid">
+                 <div class="footer-about"> <div class="footer-logo"> <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; color: #10ac84;"> <path d="M12 2v20M2 12h20M2 7h7M2 17h7M15 7h7M15 17h7"></path> </svg> Stock<span>Insight</span> </div> <p>Providing data-driven stock market predictions and analysis to help you maximize your investment returns.</p> </div>
+                 <div class="footer-links"> <h4>Products</h4> <ul> <li><a href="#">Stock Predictions</a></li> <li><a href="#">Market Analysis</a></li> <li><a href="#">Portfolio Tracker</a></li> <li><a href="#">Research Tools</a></li> </ul> </div>
+                 <div class="footer-links"> <h4>Company</h4> <ul> <li><a href="#">About Us</a></li> <li><a href="#">Our Team</a></li> <li><a href="#">Careers</a></li> <li><a href="#">Contact</a></li> </ul> </div>
+                 <div class="footer-links"> <h4>Resources</h4> <ul> <li><a href="#">Blog</a></li> <li><a href="#">News</a></li> <li><a href="#">Help Center</a></li> <li><a href="#">FAQs</a></li> </ul> </div>
+             </div>
+             <div class="copyright"> <p>&copy; 2025 StockInsight. All rights reserved.</p> </div>
+         </div>
+    </footer>
+
+    {% block body_scripts %}{% endblock %}
+</body>
+</html>
