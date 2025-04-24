@@ -16,7 +16,7 @@ cache/
 # OS generated files
 .DS_Store
 Thumbs.db
-
+template/index.html
 # Generated static files (Reports, CSVs)
 # Keep the static folder itself, but ignore HTML/CSV inside
 static/*.html
