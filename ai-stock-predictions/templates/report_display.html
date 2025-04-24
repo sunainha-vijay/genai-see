@@ -20,35 +20,14 @@
             justify-content: space-between;
             align-items: center;
         }
-         .report-controls h2 {
-             margin: 0;
-             padding-bottom: 0.5rem; /* Space below heading */
-             font-size: 1.8rem;
-             color: #34495e;
-         }
-
-        /* Placeholder for the fetched report content */
-        #report-content-area {
-            width: 100%;
-            min-height: 70vh; /* Ensure it takes significant height */
-            background-color: #fff; /* White background */
-            /* The content loaded will have its own max-width from report_generator.py */
-        }
-        #report-content-area .loading-message {
-            text-align: center;
-            padding: 4rem 1rem;
-            font-size: 1.2rem;
-            color: #6c757d;
-        }
-         #report-content-area .error-message {
-            text-align: center;
-            padding: 4rem 1rem;
-            font-size: 1.1rem;
-            color: #dc3545;
-             font-weight: 500;
+        .report-controls h2 {
+            margin: 0;
+            padding-bottom: 0.5rem; /* Space below heading */
+            font-size: 1.8rem;
+            color: #34495e;
         }
 
-         /* Style for the back button */
+        /* Style for the back button */
         .btn-back {
             display: inline-block;
             padding: 8px 16px;
@@ -67,85 +46,103 @@
             color: #fff;
             text-decoration: none;
         }
+
+        /* Loading message style */
+        .loading-message {
+            text-align: center;
+            padding: 4rem 1rem;
+            font-size: 1.2rem;
+            color: #6c757d;
+        }
+        .error-message {
+            text-align: center;
+            padding: 4rem 1rem;
+            font-size: 1.1rem;
+            color: #dc3545;
+            font-weight: 500;
+        }
+        /* Ensure iframe container allows content to determine height */
+        #report-content-area {
+             min-height: 100vh; /* Ensure the container takes at least viewport height */
+        }
     </style>
 {% endblock %}
 
 {% block content %}
 <div class="report-viewer-container">
     <div class="report-controls">
-         <h2>Analysis Report: {{ ticker | upper }}</h2>
+        <h2>Analysis Report: {{ ticker | upper }}</h2>
         <a href="{{ url_for('index') }}" class="btn-back">Generate New Report</a>
     </div>
 
     <div id="report-content-area">
         <p class="loading-message">Loading report content...</p>
-    </div>
+        <iframe id="report-iframe" style="display: none; width: 100%; min-height: 100vh; border: none;"></iframe> {# Ensure iframe also takes height #}
 
+        {# Remove any older script block that might have been here #}
+    </div>
 </div>
 {% endblock %}
 
 {% block body_scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const reportContentArea = document.getElementById('report-content-area');
-        // Get the report URL from the query parameters passed by Flask
-        const reportUrl = "{{ report_url }}"; // Jinja templating inserts the URL
+        const iframe = document.getElementById('report-iframe');
+        const loadingMessage = document.querySelector('.loading-message');
+        const reportUrl = "{{ report_url }}"; // Jinja inserts the report URL
 
-        if (reportUrl && reportUrl !== 'None') { // Check if URL is valid
-            fetch(reportUrl)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error ${response.status} when fetching report.`);
+        if (reportUrl && reportUrl !== 'None') {
+            iframe.src = reportUrl;
+
+            iframe.onload = function() {
+                // Hide loading message and show iframe
+                loadingMessage.style.display = 'none';
+                iframe.style.display = 'block';
+
+                // --- START: Plotly Resize Fix ---
+                // Use setTimeout to trigger resize slightly after iframe load finishes,
+                // allowing the browser time to finalize layout calculations.
+                setTimeout(() => {
+                    try {
+                        // Access the Plotly object within the iframe
+                        const plotlyInstance = iframe.contentWindow.Plotly;
+
+                        // Check if Plotly and its resize function exist
+                        if (plotlyInstance && typeof plotlyInstance.Plots !== 'undefined' && typeof plotlyInstance.Plots.resize === 'function') {
+
+                            // Find all Plotly graph divs within the iframe
+                            const plotDivs = iframe.contentWindow.document.querySelectorAll('.plotly-graph-div');
+
+                            if (plotDivs.length > 0) {
+                                console.log(`Found ${plotDivs.length} Plotly divs. Triggering resize.`);
+                                // Call resize for each plot div found
+                                plotDivs.forEach(div => {
+                                    try {
+                                        plotlyInstance.Plots.resize(div);
+                                    } catch (resizeError) {
+                                         console.error('Error resizing individual plot div:', resizeError, div);
+                                    }
+                                });
+                                console.log('Plotly resize attempt finished.');
+                            } else {
+                                 console.log('No Plotly divs found in iframe to resize.');
+                            }
+                        } else {
+                            console.log('Plotly.Plots.resize function not found in iframe.');
+                        }
+                    } catch (error) {
+                        console.error('Error accessing iframe content or Plotly:', error);
                     }
-                    return response.text(); // Get the HTML content as text
-                })
-                .then(html => {
-                    // Inject the fetched HTML into the content area
-                    // This replaces the "Loading..." message
-                    reportContentArea.innerHTML = html;
+                }, 150); // Delay in milliseconds (adjust if needed, 100-250ms is usually sufficient)
+                // --- END: Plotly Resize Fix ---
+            }; // End iframe.onload
 
-                    // IMPORTANT: Re-run Plotly rendering for charts within the loaded content
-                    // Find all script tags within the loaded content that might contain Plotly.newPlot calls
-                    // Or, more simply, assume the report structure includes Plotly charts and just call render
-                    if (typeof Plotly !== 'undefined') {
-                       // Find all Plotly graph divs and render them
-                        const plotlyDivs = reportContentArea.querySelectorAll('.plotly-graph-div');
-                        plotlyDivs.forEach(div => {
-                            // This part is tricky as the plot data/layout is usually in a script tag.
-                            // A better approach in report_generator.py would be to store
-                            // JSON data in data attributes and use JS here to render.
-                            // For now, we rely on the script tags within the loaded HTML
-                            // potentially executing, or we might need a more complex solution.
-                            // Let's try finding and executing <script> tags within the injected content.
-                             const scripts = div.closest('.section').querySelectorAll('script');
-                             scripts.forEach(script => {
-                                 // Avoid re-running the main Plotly library script
-                                if (!script.src.includes('plotly-latest.min.js')) {
-                                    // Creating a new script element and appending forces execution
-                                    const newScript = document.createElement('script');
-                                    newScript.textContent = script.textContent;
-                                    // Append to body or head to ensure execution context
-                                    document.body.appendChild(newScript);
-                                    // Clean up the appended script tag after execution (optional)
-                                    // setTimeout(() => document.body.removeChild(newScript), 0);
-                                }
-                             });
-                        });
-                        // Fallback: Sometimes Plotly might just need a resize trigger after dynamic load
-                         window.dispatchEvent(new Event('resize'));
-                         console.log("Attempted to find and potentially re-render Plotly charts.");
-                    } else {
-                         console.warn("Plotly library not found. Charts might not render correctly.");
-                    }
-
-                })
-                .catch(error => {
-                    console.error('Error fetching or loading report content:', error);
-                    reportContentArea.innerHTML = `<p class="error-message">Failed to load report content. Error: ${error.message}</p>`;
-                });
+            iframe.onerror = function() {
+                loadingMessage.innerHTML = '<p class="error-message">Failed to load report content.</p>';
+                iframe.style.display = 'none'; // Hide iframe on error
+            };
         } else {
-            reportContentArea.innerHTML = '<p class="error-message">Could not load the report: Invalid report URL provided.</p>';
-            console.error("Invalid or missing report_url:", reportUrl);
+            loadingMessage.innerHTML = '<p class="error-message">Invalid report URL provided.</p>';
         }
     });
 </script>

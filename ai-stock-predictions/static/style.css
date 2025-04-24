@@ -299,6 +299,23 @@ nav {
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
+.plotly-graph-div .legend {
+    display: block !important; /* Ensure legends are always visible */
+    position: absolute !important; /* Position legends absolutely */
+    top: 10px !important; /* Adjust top position */
+    right: 10px !important; /* Adjust right position */
+    background-color: rgba(255, 255, 255, 0.8) !important; /* Semi-transparent background */
+    padding: 10px !important; /* Padding for legends */
+    border-radius: 5px !important; /* Rounded corners */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important; /* Shadow for legends */
+}
+.plotly-graph-div .xtick text {
+    text-anchor: middle; /* Center the month labels */
+    transform: rotate(-45deg); /* Match the 45-degree angle */
+    font-size: 12px; /* Adjust font size for better readability */
+    fill: #333; /* Change text color to dark gray */
+}
+
 footer {
     background-color: var(--primary);
     color: white;

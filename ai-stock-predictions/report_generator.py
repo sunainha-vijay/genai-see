@@ -174,7 +174,7 @@ def create_full_report(
         if final_forecast_average is not None:
              annotation_text = (f"<b>{final_forecast_average:.2f}</b><br><span style='color:{colors['Average']};'>{overall_pct_change:+.1f}% ({forecast_horizon_periods} {period_label}s)</span>")
              forecast_chart_fig.add_annotation(x=forecast_12m[forecast_time_col].iloc[-1], y=final_forecast_average, text=annotation_text, showarrow=True, arrowhead=2, ax=40, ay=-40, bgcolor='rgba(255,255,255,0.8)', font=dict(color=colors['Average'], size=10), bordercolor='black', borderwidth=1)
-    forecast_chart_fig.update_layout( title=f"{ticker} {forecast_horizon_periods}-{period_label} Price Forecast vs Actual", xaxis=dict(title=period_label, type="category", categoryorder='array', categoryarray=combined_time_axis), yaxis_title="Price", template="plotly_white", legend_title_text='Legend', height=500)
+    forecast_chart_fig.update_layout( title=f"{ticker} {forecast_horizon_periods}-{period_label} Price Forecast vs Actual", xaxis=dict(title=period_label, type="category", categoryorder='array', categoryarray=combined_time_axis, tickangle=45, tickformat="%b/%Y"), yaxis_title="Price", template="plotly_white", showlegend=True, legend_title_text='Legend', height=500)
     # Convert fig to html, assigning a unique ID
     forecast_chart_html = fig_to_html(forecast_chart_fig, div_id='forecast-chart-div')
 
@@ -344,6 +344,38 @@ def create_full_report(
       .general-info { padding: 1.5rem; background-color: #f8f9fa; border-radius: 8px; border-top: 1px solid #dee2e6; margin-top: 2rem;}
       .general-info p { margin-bottom: 0.5rem; font-size: 0.9rem; color: #6c757d; }
       .general-info .disclaimer { margin-top: 1rem; padding: 1rem; background-color: #e9ecef; border-left-color: #6c757d; font-size: 0.85rem; }
+      /* --- START: Legend Fix --- */
+      .plotly-graph-div .legend {
+          /* Allow legend items to wrap onto multiple lines */
+          white-space: normal !important;
+
+          /* Set a maximum width to prevent it from overflowing the container */
+          /* Adjust the '200px' value as needed for your layout */
+          max-width: 200px !important;
+
+          /* Allow vertical scrolling if the legend content is tall */
+          overflow-y: auto !important;
+
+          /* Set a maximum height to prevent excessive vertical space */
+           /* Adjust '150px' as needed */
+          max-height: 150px !important;
+
+          /* Optional: Adjust padding and font size for better fit */
+          padding: 8px !important;
+          font-size: 0.9em !important; /* Slightly smaller font */
+
+          /* Ensure visibility with background and border */
+           background-color: rgba(255, 255, 255, 0.9) !important; /* Slightly more opaque background */
+           border: 1px solid #ccc !important; /* Subtle border */
+           border-radius: 4px !important;
+           box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important; /* Soft shadow */
+      }
+
+      /* Ensure individual legend item text can wrap */
+      .plotly-graph-div .legend .traces {
+          white-space: normal !important;
+      }
+      /* --- END: Legend Fix --- */
     </style>
     """
     # ***********************************************
