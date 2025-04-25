@@ -110,10 +110,11 @@
         <div class="container hero-content">
             <div class="hero-text">
                 <h1>Smart Stock Predictions & Analysis</h1>
-                <p>Enter a stock ticker symbol (e.g., AAPL, MSFT) to generate a Stock Price Prediction Report with detailed Technical Analysis.</p>
+                <p>Enter a stock ticker symbol (e.g., AAPL, MSFT, BRK-A, ^GSPC) to generate a Stock Price Prediction Report with detailed Technical Analysis.</p>
 
                 <form id="ticker-form" class="ticker-form">
-                    <input type="text" id="ticker-input" name="ticker" list="ticker-suggestions" placeholder="Enter Stock Ticker (e.g., AAPL)" required pattern="[A-Za-z]{1,5}" title="Enter 1-5 letters for the stock ticker." style="padding: 10px; width: 250px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem;" autocomplete="off">
+                     <input type="text" id="ticker-input" name="ticker" list="ticker-suggestions" placeholder="Enter Stock Ticker (e.g., AAPL)" required title="Enter a valid stock ticker (e.g., MSFT, BRK-A, ^GSPC)." style="padding: 10px; width: 250px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem;" autocomplete="off">
+                     <small style="display: block; margin-top: 5px; color: rgba(255,255,255,0.7);">Examples: GOOGL, TSLA, BRK-A, ^GSPC</small>
                     <datalist id="ticker-suggestions">
                         <option value="AAPL">
                         <option value="MSFT">
@@ -122,8 +123,10 @@
                         <option value="TSLA">
                         <option value="NVDA">
                         <option value="META">
-                    </datalist>
-                    <button type="submit" id="generate-button" class="btn btn-primary" style="margin-left: 10px;">Generate Report</button>
+                        <option value="BRK-A">
+                        <option value="BF-B">
+                        <option value="^GSPC"> <option value="^IXIC"> <option value="GC=F"> <option value="BTC-USD"> </datalist>
+                    <button type="submit" id="generate-button" class="btn btn-primary" style="margin-left: 10px; margin-top: 10px;">Generate Report</button>
                 </form>
 
                 <div id="progress-indicator">
@@ -255,13 +258,16 @@
 
             const ticker = tickerInput.value.trim().toUpperCase();
 
-            // Basic validation
-            if (!ticker || !/^[A-Z]{1,5}$/.test(ticker)) {
-                errorMessageArea.textContent = 'Invalid ticker symbol. Please enter 1-5 letters.';
+            // ***** UPDATED CLIENT-SIDE VALIDATION: Matches backend *****
+            const validTickerRegex = /^[A-Z0-9\^.-]+$/; // Allows letters, numbers, caret, dot, hyphen
+            if (!ticker || !validTickerRegex.test(ticker)) {
+                errorMessageArea.textContent = 'Invalid ticker symbol format. Please use standard symbols (e.g., AAPL, BRK-A, ^GSPC).';
                 errorMessageArea.style.display = 'block';
                 progressIndicator.style.display = 'none'; // Hide progress
                 return;
             }
+            // ***** END UPDATED VALIDATION *****
+
 
             // Reset previous state and show progress
             resetProgress(); // Reset timer, steps, errors

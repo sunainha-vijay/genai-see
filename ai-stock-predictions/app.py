@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, send_from_directory, jsonify,
 import os
 import time
 import traceback
+import re # Import the 're' module for regex
 from pipeline import run_pipeline
 from urllib.parse import urljoin, quote # Import quote for query parameters
 
@@ -65,10 +66,17 @@ def generate_report():
     ticker = data.get('ticker', '').strip().upper()
     print(f"Received ticker: {ticker}")
 
-    if not ticker or not ticker.isalpha() or not (1 <= len(ticker) <= 5):
-        error_message = "Invalid stock ticker symbol. Please enter 1-5 letters (e.g., AAPL)."
+    # --- UPDATED VALIDATION ---
+    # Allow letters, numbers, '.', '^', '-' and remove length limit
+    # Adjusted regex to be more permissive: Allows alphanumeric, caret, dot, hyphen.
+    # You might want to refine this further based on exact allowed symbols.
+    valid_ticker_pattern = r'^[A-Z0-9\^.-]+$'
+    if not ticker or not re.match(valid_ticker_pattern, ticker):
+        error_message = "Invalid ticker symbol format. Please use standard symbols (e.g., AAPL, BRK-A, ^GSPC)."
         print(f"Validation Error: {error_message}")
         return jsonify({'status': 'error', 'message': error_message}), 400
+    # --- END UPDATED VALIDATION ---
+
 
     try:
         timestamp = str(int(time.time()))
@@ -79,8 +87,8 @@ def generate_report():
         report_path = None
         # Assuming pipeline returns (model, forecast, report_path, report_html)
         # We only need report_path here
-        if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 3:
-            report_path = pipeline_result[2]
+        if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4: # Check for 4 elements
+            report_path = pipeline_result[2] # report_path is the 3rd element
 
         if report_path and os.path.exists(report_path):
             end_time = time.time()
@@ -109,9 +117,24 @@ def generate_report():
                 'duration': f"{duration:.2f}"
             })
         else:
-            error_message = f"Report generation failed for {ticker}. Pipeline did not produce a valid report file. Check logs."
-            print(f"Pipeline Error: {error_message}")
-            return jsonify({'status': 'error', 'message': error_message}), 500
+            # Check if pipeline_result has the 4th element (report_html) even if path saving failed
+            report_html_content = None
+            if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4:
+                 report_html_content = pipeline_result[3]
+
+            if report_html_content:
+                 # If HTML was generated but file saving failed or wasn't returned properly
+                 error_message = f"Report generation completed for {ticker}, but failed to save or retrieve the report file path. Check file system permissions or pipeline logic."
+                 print(f"Pipeline Warning: {error_message}")
+                 # Still might be able to proceed if html content is available?
+                 # For now, return error, but you could potentially handle this differently.
+                 return jsonify({'status': 'error', 'message': error_message}), 500
+            else:
+                 # If pipeline truly failed to generate anything
+                 error_message = f"Report generation failed for {ticker}. Pipeline did not produce a valid report. Check logs."
+                 print(f"Pipeline Error: {error_message}")
+                 return jsonify({'status': 'error', 'message': error_message}), 500
+
 
     # --- Exception Handling (Keep as before) ---
     except Exception as e:
