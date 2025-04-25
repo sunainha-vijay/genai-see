@@ -165,20 +165,19 @@ nav {
 /* Style for the ticker input form group */
 .ticker-form {
     display: flex;
-    flex-wrap: wrap; /* Allow button to wrap on small screens */
-    align-items: flex-start; /* Align items to top */
-    gap: 10px; /* Space between input and button */
+    flex-wrap: wrap; /* Allows wrapping (important for the small tag) */
+    align-items: flex-start; /* Align items to top by default */
+    gap: 10px; /* Space between elements */
 }
 
 .ticker-form input[type="text"] {
     padding: 10px;
-    /* width: 250px; */ /* Remove fixed width */
     border: 1px solid #ccc;
     border-radius: 4px;
     font-size: 1rem;
-    flex-grow: 1; /* Allow input to grow */
-    min-width: 180px; /* Ensure minimum width */
-    max-width: 300px; /* Limit max width */
+    flex-grow: 1; /* Allow input to take available space */
+    min-width: 150px; /* Ensure a minimum usable width */
+    
 }
 
 .ticker-form small {
@@ -186,12 +185,15 @@ nav {
     color: rgba(255, 255, 255, 0.7);
     font-size: 0.85rem;
     margin-top: 5px; /* Space above small text */
+    order: 3; /* Ensures the small tag appears after input/button in the flex flow */
+    flex-basis: 100%; /* Explicitly make it take the full line */
 }
 
 .ticker-form button {
-    margin-left: 0; /* Remove margin */
-    margin-top: 0; /* Remove margin */
+    margin-left: 0;
+    margin-top: 0;
     flex-shrink: 0; /* Prevent button from shrinking */
+ 
 }
 
 
@@ -528,9 +530,25 @@ footer {
     .nav-links { display: none; } /* Consider adding a hamburger menu toggle */
     .logo { font-size: 1.3rem; }
     .hero-text h1 { font-size: 2rem; }
-    .ticker-form { flex-direction: column; align-items: stretch; gap: 15px; } /* Stack form elements */
-    .ticker-form input[type="text"] { width: 100%; max-width: none; }
-    .ticker-form button { width: 100%; } /* Full-width button */
+    .ticker-form {
+        flex-direction: row; /* Change from column to row */
+        flex-wrap: wrap;     /* Ensure wrapping stays enabled */
+        align-items: center; /* Change from stretch to center */
+        gap: 8px;            /* Adjust gap if needed */
+        justify-content: flex-start; /* Align items to the start */
+    }
+
+    .ticker-form input[type="text"] {
+         /* REMOVE the width: 100% and max-width: none rules */
+         min-width: 120px; /* Optional: Adjust minimum width */
+         /* Input already has flex-grow: 1 from base styles, which is good */
+    }
+
+    .ticker-form button {
+        /* REMOVE the width: 100% rule */
+        padding: 10px 12px; /* Optional: Adjust padding */
+        /* Button already has flex-shrink: 0 from base styles */
+    }
     .hero-chart { max-width: 95%; margin-top: 2rem; }
     .feature-grid { grid-template-columns: 1fr; gap: 1.5rem; } /* Stack features */
     .stock-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; } /* Adjust stock grid */
