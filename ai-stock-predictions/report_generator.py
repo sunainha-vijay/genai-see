@@ -1,4 +1,4 @@
-# report_generator.py (Corrected create_full_report function)
+# report_generator.py (Updated function with speed improvements, CSS NOT embedded)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.io import to_html
@@ -8,12 +8,11 @@ from datetime import datetime, timedelta
 import pytz
 import json # Import json for potential future use with data attributes
 
-# Import functions from helper modules (ensure imports are correct)
-# Make sure technical_analysis is imported AFTER it has been updated
+# Import functions from helper modules
 from technical_analysis import (
     plot_historical_line_chart, plot_price_bollinger, plot_rsi,
-    plot_macd_lines, plot_macd_histogram, calculate_detailed_ta,
-    calculate_sma, calculate_rsi
+    plot_macd_lines, plot_macd_histogram, calculate_detailed_ta,get_macd_conclusion
+    # REMOVED calculate_sma, calculate_rsi imports as they are no longer directly called here
 )
 from html_components import (
     generate_metrics_summary_html, generate_risk_analysis_html,
@@ -29,29 +28,46 @@ from fundamental_analysis import (
     extract_news, safe_get
 )
 
-# Helper function to determine sentiment
-def determine_sentiment(current_price, sma_50, sma_200, overall_pct_change, rsi=None):
+# Helper function to determine sentiment (modified to use detailed_ta_data)
+def determine_sentiment(detailed_ta_data, overall_pct_change):
+    """Determines sentiment based on detailed TA data and forecast trend."""
+    current_price = detailed_ta_data.get('Current_Price')
+    sma_50 = detailed_ta_data.get('SMA_50')
+    sma_200 = detailed_ta_data.get('SMA_200')
+    rsi = detailed_ta_data.get('RSI_14') # Use RSI_14 from detailed data
+
     if current_price is None: return "N/A"
+
     score = 0
+    # Forecast Trend
     if overall_pct_change > 5: score += 1.5
     elif overall_pct_change > 1: score += 0.5
     elif overall_pct_change < -5: score -= 1.5
     elif overall_pct_change < -1: score -= 0.5
+
+    # Price vs SMAs
     if sma_50 is not None and current_price > sma_50: score += 0.5
     elif sma_50 is not None and current_price < sma_50: score -= 0.5
     if sma_200 is not None and current_price > sma_200: score += 1.0
     elif sma_200 is not None and current_price < sma_200: score -= 1.0
-    if sma_50 is not None and sma_200 is not None and sma_50 > sma_200: score += 0.5
-    elif sma_50 is not None and sma_200 is not None and sma_50 < sma_200: score -= 0.5
+
+    # SMA Crossover (Golden/Death Cross approximation)
+    if sma_50 is not None and sma_200 is not None:
+        if sma_50 > sma_200: score += 0.5 # 50 above 200 is bullish
+        else: score -= 0.5 # 50 below 200 is bearish
+
+    # RSI Level
     if rsi is not None and not pd.isna(rsi):
-        if rsi > 65: score += 0.5
-        elif rsi < 35: score -= 0.5
+        if rsi > 65: score -= 0.25 # Slightly bearish if high RSI (potential reversal)
+        elif rsi < 35: score += 0.25 # Slightly bullish if low RSI (potential reversal)
+
+    # Determine Sentiment String
     if score >= 2.5: return "Strong Bullish"
     elif score >= 1.0: return "Bullish"
     elif score <= -2.5: return "Strong Bearish"
     elif score <= -1.0: return "Bearish"
     else: return "Neutral"
-
+    pass 
 # --- Main Report Generation Function ---
 def create_full_report(
     ticker,
@@ -61,232 +77,203 @@ def create_full_report(
     fundamentals,
     ts,
     aggregation=None,
-    app_root=None
+    app_root=None,
+    plot_period_years=3 # Parameter to control plot range
 ):
     """
-    Generates a detailed HTML stock analysis report.
-    Uses app_root to determine the correct static directory path.
-    Returns the absolute file path AND the full HTML content as a string.
-    Ensures the generated HTML includes the Plotly JS library for standalone viewing.
+    Generates a detailed HTML stock analysis report with speed optimizations.
+    Relies on external CSS linking (does not embed CSS).
+
+    Args:
+        (Same as previous version)
+        plot_period_years (int, optional): Number of years of history to display on TA charts. Defaults to 3.
+
+    Returns:
+        tuple: (report_path, report_html)
+            - report_path (str or None): Absolute path to the saved HTML report file, or None if saving failed.
+            - report_html (str or None): Full HTML content of the report as a string, or None if generation failed.
     """
     print(f"Starting report generation for {ticker}...")
 
-    # Determine the static directory path
+    # Determine the static directory path (needed for saving file)
     if app_root is None:
-        print("Warning: app_root not provided to create_full_report. Assuming current directory structure.")
-        static_dir = 'static'
+        print("Warning: app_root not provided to create_full_report. Assuming current directory structure for saving.")
+        static_dir = 'static' # Assume relative path for saving if app_root is missing
     else:
         static_dir = os.path.join(app_root, 'static')
     os.makedirs(static_dir, exist_ok=True)
-    print(f"Using static directory: {static_dir}")
+    print(f"Report will be saved in directory: {static_dir}")
 
-    # Data Validation and Preparation
+    # --- Data Validation and Preparation (Keep as before) ---
     required_hist_cols = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+    if historical_data is None or historical_data.empty:
+         raise ValueError("Historical data is missing or empty.")
     if not all(col in historical_data.columns for col in required_hist_cols):
         missing_cols_str = ', '.join([col for col in required_hist_cols if col not in historical_data.columns])
         raise ValueError(f"Historical data missing required columns: {missing_cols_str}")
-    if not historical_data.empty and not isinstance(historical_data['Date'].iloc[0], pd.Timestamp):
+    if not isinstance(historical_data['Date'].iloc[0], pd.Timestamp):
          try: historical_data['Date'] = pd.to_datetime(historical_data['Date'])
          except Exception as e: raise ValueError(f"Historical data 'Date' column error: {e}")
     historical_data = historical_data.sort_values('Date').reset_index(drop=True)
     hist_data_for_ta = historical_data.copy()
 
-    # Determine time column and label
-    if not forecast_data.empty and "YearMonth" in forecast_data.columns:
-        forecast_time_col = "YearMonth"; actual_time_col = "YearMonth"; period_label = "Month"
-    elif not forecast_data.empty and "Period" in forecast_data.columns:
-        forecast_time_col = "Period"; actual_time_col = "Period"; period_label = "Period"
+    # --- Determine time column and label (Keep as before) ---
+    time_col = "Period"; period_label = "Period" # Default
+    if forecast_data is not None and not forecast_data.empty and "Period" in forecast_data.columns:
+        first_period = str(forecast_data['Period'].iloc[0])
+        if len(first_period) == 7 and '-' in first_period: period_label = "Month"
+        elif len(first_period) == 7 and '-' not in first_period : period_label = "Week"
+        elif len(first_period) == 10: period_label = "Day"
+    elif actual_data is not None and not actual_data.empty and "Period" in actual_data.columns:
+         first_period = str(actual_data['Period'].iloc[0])
+         if len(first_period) == 7 and '-' in first_period: period_label = "Month"
+         elif len(first_period) == 7 and '-' not in first_period : period_label = "Week"
+         elif len(first_period) == 10: period_label = "Day"
     else:
-        print("Warning: Forecast data missing 'YearMonth' or 'Period' column, or is empty. Using default labels.")
-        forecast_time_col = "Period"; actual_time_col = "Period"; period_label = "Period"
-        if forecast_data is None: forecast_data = pd.DataFrame()
+        print("Warning: Could not reliably determine aggregation period. Using default 'Period'.")
 
-    # Handle potential missing time column in actual_data with fallback
-    if not actual_data.empty:
-        if actual_time_col not in actual_data.columns:
-            if "Period" in actual_data.columns:
-                actual_time_col = "Period"
-                print(f"Warning: '{forecast_time_col}' not in actual_data, falling back to 'Period'.")
-            else:
-                 raise ValueError(f"Actual data must have a time column ('{forecast_time_col}' or 'Period'). Found: {actual_data.columns}")
-    elif actual_data is None: # Handle case where actual_data might be None
-        actual_data = pd.DataFrame() # Ensure it's an empty DataFrame
+    if actual_data is not None and not actual_data.empty and "Period" not in actual_data.columns:
+         if "YearMonth" in actual_data.columns:
+             actual_data = actual_data.rename(columns={"YearMonth": time_col})
+             print(f"Renamed 'YearMonth' to '{time_col}' in actual_data.")
+         else:
+              print(f"Warning: Actual data missing '{time_col}' column. Found: {actual_data.columns}")
 
+    # --- Calculate Detailed TA Data FIRST (Keep as before) ---
+    print("Calculating detailed technical analysis data...")
+    detailed_ta_data = calculate_detailed_ta(hist_data_for_ta)
+    if not detailed_ta_data:
+        print("Warning: Detailed TA calculation returned empty. Summary might be incomplete.")
 
-    # Calculate Key Metrics
+    # --- Calculate Key Metrics using detailed_ta_data (Keep as before) ---
     print("Calculating key metrics...")
-    current_price = historical_data['Close'].iloc[-1] if not historical_data.empty else None
+    current_price = detailed_ta_data.get('Current_Price')
     last_date = historical_data['Date'].iloc[-1] if not historical_data.empty else datetime.now(pytz.utc)
     volatility = None; green_days = None; total_days = 0
     if len(historical_data) > 1:
-        if len(historical_data) >= 30: # Use last 30 trading days if available
-            last_30_days_df = historical_data.iloc[-30:]
-        else: # Otherwise use all available days
-            last_30_days_df = historical_data.iloc[-len(historical_data):]
-
-        daily_returns = last_30_days_df['Close'].pct_change().dropna()
-        if not daily_returns.empty: volatility = daily_returns.std() * np.sqrt(252) * 100
-        # Correct total_days calculation
-        total_days = len(last_30_days_df) -1 if len(last_30_days_df) > 0 else 0
-        green_days = (last_30_days_df['Close'].diff().dropna() > 0).sum() if total_days > 0 else 0
-
-
-    sma50 = calculate_sma(historical_data['Close'], 50).iloc[-1] if len(historical_data) >= 50 else None
-    sma200 = calculate_sma(historical_data['Close'], 200).iloc[-1] if len(historical_data) >= 200 else None
-    latest_rsi = calculate_rsi(historical_data['Close'], 14).iloc[-1] if len(historical_data) >= 15 else None
+        last_30_days_df = historical_data.iloc[-min(30, len(historical_data)):]
+        if len(last_30_days_df) > 1:
+            daily_returns = last_30_days_df['Close'].pct_change().dropna()
+            if not daily_returns.empty: volatility = daily_returns.std() * np.sqrt(252) * 100
+            price_diff = last_30_days_df['Close'].diff().dropna()
+            green_days = (price_diff > 0).sum()
+            total_days = len(price_diff)
+    sma50 = detailed_ta_data.get('SMA_50')
+    sma200 = detailed_ta_data.get('SMA_200')
+    latest_rsi = detailed_ta_data.get('RSI_14')
     forecast_horizon_periods = 0; forecast_12m = pd.DataFrame(); final_forecast_average = None; forecast_1m = None
-    if not forecast_data.empty and 'Average' in forecast_data.columns:
+    if forecast_data is not None and not forecast_data.empty and 'Average' in forecast_data.columns:
         forecast_horizon_periods = min(len(forecast_data), 12)
         forecast_12m = forecast_data.head(forecast_horizon_periods)
         if not forecast_12m.empty:
             final_forecast_average = forecast_12m['Average'].iloc[-1]
             forecast_1m = forecast_data['Average'].iloc[0] if len(forecast_data) > 0 else None
-    overall_pct_change = ((final_forecast_average - current_price) / current_price) * 100 if current_price and final_forecast_average is not None and current_price != 0 else 0
-    sentiment = determine_sentiment(current_price, sma50, sma200, overall_pct_change, latest_rsi)
+    overall_pct_change = 0.0
+    if current_price is not None and final_forecast_average is not None and current_price != 0:
+        overall_pct_change = ((final_forecast_average - current_price) / current_price) * 100
+    sentiment = determine_sentiment(detailed_ta_data, overall_pct_change)
 
-    # Calculate Detailed TA Data
-    print("Calculating detailed technical analysis data...")
-    detailed_ta_data = calculate_detailed_ta(hist_data_for_ta)
-    # Ensure RSI from detailed_ta is used if available
-    if 'RSI_14' in detailed_ta_data and detailed_ta_data['RSI_14'] is not None:
-         latest_rsi = detailed_ta_data['RSI_14']
-    elif 'RSI' not in detailed_ta_data: # Add if missing entirely
-         detailed_ta_data['RSI'] = latest_rsi # Use the value calculated earlier
-
-    # Prepare Data for Tables
+    # --- Prepare Data for Tables (Keep as before) ---
     print("Preparing forecast table data...")
     monthly_forecast_table_data = forecast_12m.copy()
     if not monthly_forecast_table_data.empty and current_price is not None and current_price != 0:
-        monthly_forecast_table_data['Potential ROI'] = ((monthly_forecast_table_data['Average'] - current_price) / current_price) * 100
-        monthly_forecast_table_data['Action'] = monthly_forecast_table_data['Potential ROI'].apply( lambda x: 'Buy' if x > 2 else ('Short' if x < -2 else 'Hold'))
+        if 'Average' in monthly_forecast_table_data.columns:
+            monthly_forecast_table_data['Potential ROI'] = ((monthly_forecast_table_data['Average'] - current_price) / current_price) * 100
+            monthly_forecast_table_data['Action'] = monthly_forecast_table_data['Potential ROI'].apply( lambda x: 'Buy' if x > 2 else ('Short' if x < -2 else 'Hold'))
+        else:
+            monthly_forecast_table_data['Potential ROI'] = 0.0
+            monthly_forecast_table_data['Action'] = 'N/A'
     elif not monthly_forecast_table_data.empty:
          monthly_forecast_table_data['Potential ROI'] = 0.0; monthly_forecast_table_data['Action'] = 'N/A'
 
-    # Generate Plotly Figures
+    # --- Generate Plotly Figures (Keep as before) ---
     print("Generating plots...")
-    def fig_to_html(fig, include_plotlyjs=False, full_html=False, div_id=None, config=None):
-        if fig is None:
-            return ""
-        # Default config if none provided
-        default_config = {'displayModeBar': False} # Default: hide modebar
-        if config is None:
-            config = default_config
-        else:
-            # Merge provided config with default (provided keys override default)
-            merged_config = default_config.copy()
-            merged_config.update(config)
-            config = merged_config
-        # Check if fig is None before attempting conversion
-        return to_html(fig, include_plotlyjs=include_plotlyjs, full_html=full_html, div_id=div_id, config=config ) if fig else ""
+    def fig_to_html(fig, include_plotlyjs=True, full_html=False, div_id=None, config=None):
+        if fig is None: return ""
+        default_config = {'displayModeBar': True, 'displaylogo': False, 'responsive': True}
+        merged_config = default_config.copy()
+        if config: merged_config.update(config)
+        try:
+             return to_html(fig, include_plotlyjs=include_plotlyjs, full_html=full_html, div_id=div_id, config=merged_config)
+        except Exception as e:
+             print(f"Error converting figure to HTML: {e}")
+             return f'<p style="color:red;">Error rendering plot: {e}</p>'
 
-    # --- Forecast Chart (with REVISED layout structure) ---
+    # --- Forecast Chart (Keep as before) ---
     forecast_chart_fig = go.Figure()
-    # Ensure display_actual and forecast_12m have the correct, consistently named time column
-    display_actual_renamed = actual_data.tail(6).rename(columns={actual_time_col: 'TimeColumn'}) if actual_time_col in actual_data else pd.DataFrame()
-    forecast_12m_renamed = forecast_12m.rename(columns={forecast_time_col: 'TimeColumn'}) if forecast_time_col in forecast_12m else pd.DataFrame()
-
+    display_actual_renamed = actual_data.tail(6).rename(columns={time_col: 'TimeColumn'}) if actual_data is not None and time_col in actual_data else pd.DataFrame()
+    forecast_12m_renamed = forecast_12m.rename(columns={time_col: 'TimeColumn'}) if forecast_12m is not None and time_col in forecast_12m else pd.DataFrame()
     time_axis_parts = []
     if not display_actual_renamed.empty: time_axis_parts.append(display_actual_renamed['TimeColumn'])
     if not forecast_12m_renamed.empty: time_axis_parts.append(forecast_12m_renamed['TimeColumn'])
-    # Sort combined axis if possible (assuming they are sortable like strings 'YYYY-MM')
-    try:
-        combined_time_axis = sorted(list(pd.concat(time_axis_parts).unique())) if time_axis_parts else []
-    except TypeError: # Handle cases where axis might not be directly sortable
-        combined_time_axis = list(pd.concat(time_axis_parts).unique()) if time_axis_parts else []
-
-
-    if not display_actual_renamed.empty:
-        forecast_chart_fig.add_trace( go.Scatter(x=display_actual_renamed['TimeColumn'], y=display_actual_renamed['Average'], mode='lines+markers', name='Actual', line=dict(color='#1f77b4', width=2), marker=dict(size=6), hovertemplate=f"<b>%{{x}} ({period_label})</b><br><b>Actual Avg</b>: %{{y:.2f}}<extra></extra>")) # Smaller markers/lines
+    try: combined_time_axis = sorted(list(pd.concat(time_axis_parts).unique())) if time_axis_parts else []
+    except TypeError: combined_time_axis = list(pd.concat(time_axis_parts).unique()) if time_axis_parts else []
+    if not display_actual_renamed.empty and 'Average' in display_actual_renamed.columns:
+        forecast_chart_fig.add_trace( go.Scatter(x=display_actual_renamed['TimeColumn'], y=display_actual_renamed['Average'], mode='lines+markers', name='Actual', line=dict(color='#1f77b4', width=2), marker=dict(size=6), hovertemplate=f"<b>%{{x}} ({period_label})</b><br><b>Actual Avg</b>: %{{y:.2f}}<extra></extra>"))
     if not forecast_12m_renamed.empty:
         colors = {'Low': '#d62728', 'Average': '#2ca02c', 'High': '#9467bd'}
-        for col in ['Low', 'Average', 'High']:
-             if col in forecast_12m_renamed.columns:
-                 forecast_chart_fig.add_trace(go.Scatter(x=forecast_12m_renamed['TimeColumn'], y=forecast_12m_renamed[col], mode='lines+markers', name=f'Fcst {col}', line=dict(color=colors[col], width=2), marker=dict(size=6, line=dict(width=1, color='#ffffff')), hovertemplate=f"<b>%{{x}} ({period_label})</b><br><b>{col}</b>: %{{y:.2f}}<extra></extra>")) # Smaller markers/lines
-        if final_forecast_average is not None and not forecast_12m_renamed.empty: # Check df is not empty
+        plot_cols = ['Low', 'Average', 'High'] if all(c in forecast_12m_renamed for c in ['Low', 'Average', 'High']) else ['Average']
+        for col in plot_cols:
+            forecast_chart_fig.add_trace(go.Scatter(x=forecast_12m_renamed['TimeColumn'], y=forecast_12m_renamed[col], mode='lines+markers', name=f'Fcst {col}', line=dict(color=colors[col], width=2), marker=dict(size=6, line=dict(width=1, color='#ffffff')), hovertemplate=f"<b>%{{x}} ({period_label})</b><br><b>{col}</b>: %{{y:.2f}}<extra></extra>"))
+        if final_forecast_average is not None and 'Average' in forecast_12m_renamed.columns:
              annotation_text = (f"<b>{final_forecast_average:.2f}</b><br><span style='color:{colors['Average']};'>{overall_pct_change:+.1f}% ({forecast_horizon_periods} {period_label}s)</span>")
-             # Adjust annotation position slightly if needed
-             forecast_chart_fig.add_annotation(x=forecast_12m_renamed['TimeColumn'].iloc[-1], y=final_forecast_average, text=annotation_text, showarrow=True, arrowhead=2, ax=30, ay=-30, bgcolor='rgba(255,255,255,0.8)', font=dict(color=colors['Average'], size=10), bordercolor='black', borderwidth=1)
-
-    # Apply REVISED layout structure for Forecast chart
+             last_time_period = forecast_12m_renamed['TimeColumn'].iloc[-1]
+             forecast_chart_fig.add_annotation(x=last_time_period, y=final_forecast_average, text=annotation_text, showarrow=True, arrowhead=2, ax=30, ay=-30, bgcolor='rgba(255,255,255,0.8)', font=dict(color=colors['Average'], size=10), bordercolor='black', borderwidth=1)
     forecast_chart_fig.update_layout(
-        # 1. Title
         title=dict(text=f"{ticker} {forecast_horizon_periods}-{period_label} Forecast", y=0.98, x=0.5, xanchor='center', yanchor='top', font_size=14),
-        # 2. Legend
         legend=dict(orientation="h", yanchor="top", y=0.92, xanchor="center", x=0.5, font_size=10),
-        # No range selector needed for this specific chart type
-        # 3. Plot Area
-        xaxis=dict(
-            title=period_label, type="category", categoryorder='array', categoryarray=combined_time_axis,
-            tickangle=-45, tickformat="%b %Y", tickfont_size=10,
-            domain=[0, 1], # Use full width
-            automargin=True
-        ),
-        yaxis_title="Price ($)",
-        # Adjust y-axis domain to make space for title/legend above
-        yaxis=dict(domain=[0, 0.85], tickfont_size=10, automargin=True),
-        # 4. Margins and Size
-        margin=dict(l=35, r=25, t=80, b=40), # Increased top margin
-        height=450,
-        template="plotly_white",
-        showlegend=True
+        xaxis=dict(title=period_label, type="category", categoryorder='array', categoryarray=combined_time_axis, tickangle=-45, tickformat="%b %Y", tickfont_size=10, domain=[0, 1], automargin=True),
+        yaxis_title="Price ($)", yaxis=dict(domain=[0, 0.85], tickfont_size=10, automargin=True),
+        margin=dict(l=35, r=25, t=80, b=40), autosize=True, template="plotly_white", showlegend=True
     )
     forecast_chart_html = fig_to_html(forecast_chart_fig, div_id='forecast-chart-div')
-    # --- End Forecast Chart ---
 
-    # --- Technical Analysis Charts (use functions from technical_analysis.py which now have updated layouts) ---
+    # --- Technical Analysis Charts (Using plot_period_years) ---
     historical_line_fig = plot_historical_line_chart(historical_data.copy(), ticker)
     historical_chart_html = fig_to_html(historical_line_fig, div_id='hist-chart-div')
-    bb_fig, bb_conclusion = plot_price_bollinger(hist_data_for_ta.copy(), ticker)
+    bb_fig, bb_conclusion = plot_price_bollinger(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
     bb_chart_html = fig_to_html(bb_fig, div_id='bb-chart-div')
-    rsi_fig, rsi_conclusion = plot_rsi(hist_data_for_ta.copy(), ticker)
+    rsi_fig, rsi_conclusion = plot_rsi(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
     rsi_chart_html = fig_to_html(rsi_fig, div_id='rsi-chart-div')
-    macd_lines_fig, macd_conclusion = plot_macd_lines(hist_data_for_ta.copy(), ticker)
+    macd_conclusion = get_macd_conclusion(detailed_ta_data.get('MACD_Line'), detailed_ta_data.get('MACD_Signal'), detailed_ta_data.get('MACD_Hist'), detailed_ta_data.get('MACD_Hist_Prev')) if detailed_ta_data.get('MACD_Hist') is not None else "MACD conclusion requires more data."
+    macd_lines_fig, _ = plot_macd_lines(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
     macd_lines_chart_html = fig_to_html(macd_lines_fig, div_id='macd-lines-chart-div')
-    # Ensure MACD hist calculation happens if needed, reuse conclusion from lines
-    macd_hist_df = hist_data_for_ta.copy() # Use a copy for this plot
-    if 'MACD_Hist' not in macd_hist_df.columns and 'MACD_Line' in macd_hist_df.columns and 'MACD_Signal' in macd_hist_df.columns:
-         macd_hist_df['MACD_Hist'] = macd_hist_df['MACD_Line'] - macd_hist_df['MACD_Signal']
-    macd_hist_fig, _ = plot_macd_histogram(macd_hist_df, ticker) # Pass the copy
+    macd_hist_fig, _ = plot_macd_histogram(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
     macd_hist_chart_html = fig_to_html(macd_hist_fig, div_id='macd-hist-chart-div')
 
-
-    # Extract Fundamental Data
+    # --- Extract Fundamental Data (Keep as before) ---
     print("Extracting fundamental data...")
     profile = extract_company_profile(fundamentals); valuation = extract_valuation_metrics(fundamentals)
     financial_health = extract_financial_health(fundamentals); profitability = extract_profitability(fundamentals)
     dividends = extract_dividends_splits(fundamentals); analyst_info = extract_analyst_info(fundamentals)
     news_list = extract_news(fundamentals)
 
-    # Generate HTML Components
+    # --- Generate HTML Components (Keep as before) ---
     print("Generating HTML components...")
     metrics_summary_html = generate_metrics_summary_html( ticker, current_price, forecast_1m, final_forecast_average, overall_pct_change, sentiment, volatility, green_days, total_days, sma50, sma200, period_label)
     risk_items = []
-    info_dict = fundamentals.get('info', {})
     if sentiment.lower().find('bearish') != -1: risk_items.append(f"Overall technical sentiment is {sentiment}.")
     if volatility is not None and volatility > 40: risk_items.append(f"High annualized volatility ({volatility:.1f}%) suggests potentially large price swings.")
     if sma50 is not None and current_price is not None and current_price < sma50: risk_items.append("Price below the 50-Day SMA (short-term weakness).")
     if sma200 is not None and current_price is not None and current_price < sma200: risk_items.append("Price below the 200-Day SMA (long-term weakness).")
     if overall_pct_change < -5: risk_items.append(f"Negative {forecast_horizon_periods}-{period_label} forecast trend ({overall_pct_change:+.1f}%).")
-    # Use the potentially updated latest_rsi value
-    if latest_rsi is not None and not pd.isna(latest_rsi):
-        if latest_rsi > 70: risk_items.append(f"RSI ({latest_rsi:.1f}) is high (>70), potential overbought condition.")
-        if latest_rsi < 30: risk_items.append(f"RSI ({latest_rsi:.1f}) is low (<30), potential oversold condition.")
-
+    if latest_rsi is not None and not pd.isna(latest_rsi) and latest_rsi > 70:
+        risk_items.append(f"RSI ({latest_rsi:.1f}) is high (>70), potential overbought condition.")
     pe_value_str = valuation.get('Trailing P/E', 'N/A')
     if pe_value_str != 'N/A' and isinstance(pe_value_str, str) and 'x' in pe_value_str:
-        try: pe_val = float(pe_value_str.replace('x',''));
+        try: pe_val = float(pe_value_str.replace('x',''))
         except ValueError: pe_val = None
         if pe_val is not None:
             if pe_val > 50: risk_items.append(f"High Trailing P/E ratio ({pe_value_str}).")
             elif pe_val <=0: risk_items.append(f"Negative/Zero Trailing P/E ratio ({pe_value_str}).")
     debt_equity_str = financial_health.get('Debt/Equity', 'N/A')
-    if debt_equity_str != 'N/A' and isinstance(debt_equity_str, str) and 'x' in debt_equity_str : # Check for 'x'
-        try:
-            debt_equity_val = float(debt_equity_str.replace('x',''))
-            if debt_equity_val > 1.5 : risk_items.append(f"High Debt-to-Equity ratio ({debt_equity_str}).")
-        except ValueError: pass # Ignore if conversion fails
+    if debt_equity_str != 'N/A' and isinstance(debt_equity_str, str) and 'x' in debt_equity_str :
+        try: debt_equity_val = float(debt_equity_str.replace('x',''))
+        except ValueError: debt_equity_val = None
+        if debt_equity_val is not None and debt_equity_val > 1.5 :
+            risk_items.append(f"High Debt-to-Equity ratio ({debt_equity_str}).")
     risk_analysis_html = generate_risk_analysis_html(risk_items)
-    monthly_forecast_table_html = generate_monthly_forecast_table_html( monthly_forecast_table_data, ticker, forecast_time_col, period_label)
+    monthly_forecast_table_html = generate_monthly_forecast_table_html( monthly_forecast_table_data, ticker, time_col, period_label)
     tech_analysis_summary_html = generate_tech_analysis_summary_html( ticker, sentiment, current_price, last_date, detailed_ta_data)
     overall_conclusion_html = generate_overall_conclusion_html( ticker, sentiment, overall_pct_change, final_forecast_average, current_price, risk_items, valuation, analyst_info, detailed_ta_data)
     faq_html = generate_faq_html( ticker, current_price, forecast_1m, final_forecast_average, overall_pct_change, monthly_forecast_table_data, risk_items, sentiment, volatility, valuation, analyst_info, period_label)
@@ -299,10 +286,10 @@ def create_full_report(
     analyst_info_html = generate_analyst_info_html(analyst_info)
     news_html = generate_news_html(news_list)
 
-    # --- Define CSS (Includes previous responsive/Plotly fixes) ---
-    print("Defining CSS...")
-    # This CSS includes the fixes for modebar, legend, and responsiveness from previous steps
-    # No changes needed in CSS for the new Plotly layout structure itself
+    # --- Define CSS within the function (Restoring original approach) ---
+    # This CSS includes the fixes for modebar, legend, and responsiveness
+    # This was present in the original code provided in the context fetch.
+    print("Defining CSS (inline)...")
     custom_style = """
     <style>
       /* --- Base & General --- */
@@ -377,82 +364,13 @@ def create_full_report(
       .ma-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
       .ma-item { background: #f8f9fa; padding: 0.8rem 1rem; border-radius: 6px; font-size: 0.95rem; border: 1px solid #dee2e6;}
       .ma-item .label { font-weight: 600; margin-right: 0.5rem;} .ma-item .value { font-weight: 500; } .ma-item .status { font-size: 0.85rem; margin-left: 0.4rem; font-style: italic;}
-
       /* --- START: Updated Graph Container Styles --- */
-      .indicator-chart-container {
-          background-color: #ffffff;
-          padding: 0; /* Adjust if padding causes issues */
-          margin-bottom: 0.5rem; /* Space below container */
-          border-radius: 8px;
-          border: 1px solid #dee2e6; /* Defines the 'box' */
-          width: 100%; /* Use full available width */
-          max-width: 100%; /* Prevent overflow */
-          position: relative; /* Needed for absolute positioning of modebar */
-          overflow: hidden; /* Clip any content that might overflow the rounded corners */
-      }
-      .indicator-conclusion {
-          padding: 1.2rem 1.5rem;
-          margin-top: 0; /* No margin needed if part of the container */
-          border-top: 1px solid #dee2e6;
-          font-size: 0.95rem;
-          line-height: 1.6;
-          color: #495057;
-          background-color: #f8f9fa;
-          border-radius: 0 0 8px 8px; /* Rounded bottom corners */
-          margin-bottom: 1.5rem; /* Space after the conclusion */
-      }
-      /* Plotly div specific styling */
-      .plotly-graph-div {
-          margin: 0 auto !important;
-          width: 100% !important; /* Make Plotly graph fill its container */
-          height: 100% !important; /* Make Plotly graph fill its container */
-          /* Let Plotly's autosize manage aspect ratio based on container */
-          /* min-height: 300px; /* Optional: set a minimum height */
-          /* padding-top: 35px !important; /* Ensure space for modebar if needed */
-          position: relative;
-      }
-      /* Plotly Modebar (Positioning and basic style) */
-      .modebar {
-          position: absolute !important;
-          top: 2px !important;
-          left: 50% !important;
-          transform: translateX(-50%) !important;
-          width: auto !important;
-          max-width: calc(100% - 10px) !important;
-          display: flex !important;
-          flex-wrap: wrap !important;
-          justify-content: center !important;
-          background-color: rgba(245, 245, 245, 0.9) !important;
-          border: 1px solid #ccc !important;
-          border-radius: 4px !important;
-          padding: 3px 5px !important;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-          opacity: 1 !important;
-          z-index: 1001 !important;
-          transition: none !important;
-      }
-      /* Plotly Legend - Horizontal below plot */
-      .plotly-graph-div .legend {
-          position: relative !important;
-          width: calc(100% - 20px) !important;
-          max-width: calc(100% - 20px) !important;
-          margin: 1px auto 0 auto !important; /* Margin below plot */
-          white-space: normal !important;
-          overflow-y: visible !important;
-          max-height: none !important;
-          padding: 5px !important;
-          font-size: 0.85em !important;
-          background-color: rgba(255, 255, 255, 0.9) !important;
-          border: 1px solid #ccc !important;
-          border-radius: 4px !important;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-          display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
-          top: auto !important; bottom: auto !important; left: auto !important; right: auto !important; transform: none !important;
-      }
-      .plotly-graph-div .legend .traces { white-space: normal !important; display: inline-block !important; margin-right: 10px; margin-bottom: 3px; }
+      .indicator-chart-container { background-color: #ffffff; padding: 0; margin-bottom: 0.5rem; border-radius: 8px; border: 1px solid #dee2e6; width: 100%; max-width: 100%; position: relative; overflow: hidden; }
+      .indicator-conclusion { padding: 1.2rem 1.5rem; margin-top: 0; border-top: 1px solid #dee2e6; font-size: 0.95rem; line-height: 1.6; color: #495057; background-color: #f8f9fa; border-radius: 0 0 8px 8px; margin-bottom: 1.5rem; }
+      .plotly-graph-div { margin: 0 auto !important; width: 100% !important; height: 100% !important; position: relative; }
+      .modebar { position: absolute !important; top: 2px !important; left: 50% !important; transform: translateX(-50%) !important; width: auto !important; max-width: calc(100% - 10px) !important; display: flex !important; flex-wrap: wrap !important; justify-content: center !important; background-color: rgba(245, 245, 245, 0.9) !important; border: 1px solid #ccc !important; border-radius: 4px !important; padding: 3px 5px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important; opacity: 1 !important; z-index: 1001 !important; transition: none !important; }
+      .plotly-graph-div .legend { /* Removed legend styling - handled by Plotly layout now */ }
       /* --- END: Updated Graph Container Styles --- */
-
-      /* Other sections */
       .overall-conclusion .conclusion-columns { display: flex; flex-wrap: wrap; gap: 2.5rem; margin: 1.5rem 0; padding: 1.5rem; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;}
       .overall-conclusion .conclusion-column { flex: 1; min-width: 300px; }
       .overall-conclusion h3 { font-size: 1.2rem; color: #34495e; margin: 0 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 1px solid #ced4da; }
@@ -479,7 +397,6 @@ def create_full_report(
       .general-info { padding: 1.5rem; background-color: #f8f9fa; border-radius: 8px; border-top: 1px solid #dee2e6; margin-top: 2rem;}
       .general-info p { margin-bottom: 0.5rem; font-size: 0.9rem; color: #6c757d; }
       .general-info .disclaimer { margin-top: 1rem; padding: 1rem; background-color: #e9ecef; border-left-color: #6c757d; font-size: 0.85rem; }
-
       /* --- Responsive Adjustments --- */
       @media (max-width: 992px) {
           body { font-size: 14px; }
@@ -492,7 +409,6 @@ def create_full_report(
           .report-container th, .report-container td { padding: 0.8rem 0.9rem; font-size: 0.9rem; }
           .overall-conclusion .conclusion-columns { gap: 1.5rem; }
           .overall-conclusion .conclusion-column { min-width: unset; }
-          /* Adjust Plotly container height */
           .plotly-graph-div { min-height: 280px; }
       }
       @media (max-width: 768px) {
@@ -522,10 +438,8 @@ def create_full_report(
           .narrative { font-size: 0.9rem; padding: 0.8rem 1rem; }
           .analyst-grid { grid-template-columns: 1fr; }
           .ma-summary { grid-template-columns: 1fr; }
-          /* Adjust Plotly container height and padding */
           .plotly-graph-div { min-height: 250px; padding-bottom: 50px; /* Padding for legend */ }
           .indicator-conclusion { font-size: 0.9rem; }
-          /* Modebar adjustments */
           .modebar-btn { min-width: 22px; height: 22px; line-height: 18px; }
           .modebar-btn svg { width: 13px; height: 13px; }
       }
@@ -547,24 +461,22 @@ def create_full_report(
           .faq details p { font-size: 0.85rem; }
           .disclaimer { font-size: 0.8rem; }
           .narrative { font-size: 0.85rem; }
-          /* Modebar adjustments */
           .modebar { padding: 2px; }
           .modebar-btn { min-width: 20px; height: 20px; line-height: 16px; }
           .modebar-btn svg { width: 11px; height: 11px; }
-          /* Adjust Plotly container height and padding */
           .plotly-graph-div { min-height: 230px; padding-bottom: 60px; /* More padding for legend */ }
           .plotly-graph-div .legend { font-size: 0.8em; }
           .indicator-conclusion { font-size: 0.85rem; }
       }
     </style>
     """
-    # ***********************************************
 
     # Assemble Final HTML Structure
     print("Assembling final HTML structure...")
     html_sections = [
+        # (Same section definitions as previous version)
         ("Key Metrics & Forecast Summary", metrics_summary_html),
-        ("Price Forecast Chart", forecast_chart_html, "forecast-chart", "<div class=\"narrative\"><p>The chart below shows the aggregated historical average price vs the forecasted price range.</p></div>"),
+        ("Price Forecast Chart", forecast_chart_html, "forecast-chart", f"<div class=\"narrative\"><p>Aggregated historical price vs. forecast range ({period_label}ly).</p></div>"),
         ("Detailed Forecast Table", monthly_forecast_table_html),
         ("Company Profile", profile_html), ("Valuation Metrics", valuation_html), ("Financial Health", financial_health_html),
         ("Profitability", profitability_html), ("Dividends & Splits", dividends_splits_html), ("Analyst Insights", analyst_info_html),
@@ -576,51 +488,44 @@ def create_full_report(
          f'<div class="indicator-chart-container">{macd_hist_chart_html or ""}</div>' +
          (f'<div class="indicator-conclusion">{macd_conclusion}</div>' if macd_conclusion else "<div class='indicator-conclusion'>MACD data not available or insufficient.</div>"),
          "tech-chart-macd-combined"),
-        ("Historical Price & Volume", historical_chart_html, "historical-chart", "<div class=\"narrative\"><p>Historical closing price and volume (with 20d avg). Use buttons below to change range.</p></div>"),
+        ("Historical Price & Volume", historical_chart_html, "historical-chart", "<div class=\"narrative\"><p>Historical closing price and volume (with 20d avg). Use buttons below chart to change range.</p></div>"),
         ("Potential Risk Factors", risk_analysis_html), ("Overall Outlook Summary", overall_conclusion_html),
         ("Recent News", news_html), ("Frequently Asked Questions", faq_html, "faq"),
         ("Report Information", final_notes_html, "general-info")
     ]
 
     report_body_content = f'<h1 class="report-title">{ticker} Stock Forecast & Analysis</h1>\n'
+    # --- Loop through sections to build body (Keep as before) ---
     for item in html_sections:
-        title, html_content_or_chart = item[0], item[1]
+        title, html_content = item[0], item[1]
         section_class = item[2] if len(item) > 2 else title.lower().replace(" ", "-").replace("&", "and")
         narrative = item[3] if len(item) > 3 else None
-        conclusion = item[4] if len(item) > 4 else None # For individual chart conclusions (BB, RSI)
+        conclusion = item[4] if len(item) > 4 else None
 
-        # Only add section if content exists OR it's a chart section (even if chart failed)
-        # Check if html_content_or_chart is not None and not an empty string
-        has_content = bool(html_content_or_chart)
+        has_content = bool(html_content)
+        is_chart_section = section_class.startswith("tech-chart-") or section_class in ["historical-chart", "forecast-chart"]
 
-        if has_content or section_class.startswith("tech-chart-") or section_class == "historical-chart" or section_class == "forecast-chart" or section_class == "tech-chart-macd-combined":
+        if has_content or is_chart_section:
             report_body_content += f'<div class="section {section_class}">\n'
             report_body_content += f'  <h2>{title}</h2>\n'
             if narrative: report_body_content += f"  {narrative}\n"
 
-            # Fallback message for charts
             chart_fallback_message = f'<p style="text-align:center; color:red; padding: 2rem 1rem;">Chart for {title} could not be generated.</p>'
 
-            # Handle Charts specifically
             if section_class == "tech-chart-macd-combined":
-                # Combined MACD: Content includes charts and conclusion. Check if the chart parts exist.
-                # Assuming html_content_or_chart contains the combined HTML string
-                report_body_content += f"  {html_content_or_chart or chart_fallback_message}\n"
-            elif section_class.startswith("tech-chart-") or section_class == "historical-chart" or section_class == "forecast-chart":
-                # Individual Chart: Wrap content (or fallback) and add conclusion if available
-                chart_html = html_content_or_chart or chart_fallback_message
+                 report_body_content += f"  {html_content or chart_fallback_message}\n"
+            elif is_chart_section:
+                chart_html = html_content or chart_fallback_message
                 report_body_content += f'  <div class="indicator-chart-container">{chart_html}</div>\n'
-                if conclusion: # Add conclusion only if it exists
+                if conclusion:
                     report_body_content += f'  <div class="indicator-conclusion">{conclusion}</div>\n'
-                # Optionally add empty conclusion div for spacing if chart exists but no conclusion text
-                # elif html_content_or_chart: report_body_content += f'  <div class="indicator-conclusion"></div>\n'
-            elif has_content: # For regular HTML components, only add if content exists
-                report_body_content += f"  {html_content_or_chart}\n"
-            # Else (no content and not a chart section), do nothing
+            elif has_content:
+                report_body_content += f"  {html_content}\n"
 
             report_body_content += f'</div>\n'
 
-    # Assemble Final HTML Document
+
+    # Assemble Final HTML Document (Using the inline custom_style)
     full_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -634,6 +539,18 @@ def create_full_report(
     <div class="report-container">
         {report_body_content}
     </div>
+    <script>
+       // Optional: Add script to trigger Plotly resize after load if needed
+       window.addEventListener('load', function() {{
+           setTimeout(function() {{ // Delay resize slightly
+               var allPlotlyDivs = document.querySelectorAll('.plotly-graph-div');
+               allPlotlyDivs.forEach(function(div) {{
+                   try {{ Plotly.Plots.resize(div); }} catch(e) {{ console.warn("Plotly resize failed for div:", div, e); }}
+               }});
+               console.log("Attempted Plotly resize on load.");
+           }}, 500); // 500ms delay
+       }});
+    </script>
 </body>
 </html>"""
 

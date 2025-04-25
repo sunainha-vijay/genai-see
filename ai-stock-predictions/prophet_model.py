@@ -98,7 +98,7 @@ def train_prophet_model(data, ticker='STOCK', forecast_horizon='1y', timestamp=N
         weekly_seasonality=True,
         changepoint_prior_scale=changepoint_prior_scale,
         seasonality_mode=seasonality_mode,
-        uncertainty_samples=50
+        uncertainty_samples=5
     )
 
     # ----- Add Regressors if Present -----

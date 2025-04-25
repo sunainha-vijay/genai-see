@@ -1,8 +1,9 @@
-# technical_analysis.py (Updated to remove fixed heights)
+# technical_analysis.py (Updated to limit plot range & use revised layout)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
+from datetime import timedelta # Import timedelta
 
 # --- Calculation Functions (Keep as before) ---
 def calculate_rsi(data: pd.Series, window: int = 14) -> pd.Series:
@@ -42,16 +43,19 @@ def get_rsi_conclusion(rsi_value):
 def get_macd_conclusion(macd_line_now, signal_line_now, histogram_now, histogram_prev):
     if pd.isna(macd_line_now) or pd.isna(signal_line_now) or pd.isna(histogram_now) or pd.isna(histogram_prev): return "MACD data not available or insufficient for comparison."
     conclusion = ""
-    if histogram_now > 0 and histogram_prev <= 0: # Trigger on cross or first positive
+    # Check for crossovers using the sign of the histogram
+    if histogram_now > 0 and histogram_prev <= 0:
         conclusion += "A bullish MACD crossover (histogram crossing above zero) may have recently occurred, suggesting potential upward momentum. "
-    elif histogram_now < 0 and histogram_prev >= 0: # Trigger on cross or first negative
+    elif histogram_now < 0 and histogram_prev >= 0:
         conclusion += "A bearish MACD crossover (histogram crossing below zero) may have recently occurred, suggesting potential downward momentum. "
 
+    # Describe current state
     if macd_line_now > signal_line_now:
         conclusion += f"Currently, the MACD line ({macd_line_now:.2f}) is above the signal line ({signal_line_now:.2f}), generally considered a bullish signal. "
     else:
         conclusion += f"Currently, the MACD line ({macd_line_now:.2f}) is below the signal line ({signal_line_now:.2f}), generally considered a bearish signal. "
 
+    # Describe histogram state
     if histogram_now > 0:
         conclusion += f"The positive histogram ({histogram_now:.2f}) indicates strengthening bullish momentum (or weakening bearish momentum)."
     elif histogram_now < 0:
@@ -68,50 +72,43 @@ def get_bb_conclusion(close_price, upper_band, lower_band, middle_band):
     elif close_price < lower_band: return f"The price (${close_price:.2f}) is currently below the lower Bollinger Band (${lower_band:.2f}), which can sometimes indicate an oversold condition or a strong breakdown. Prices may revert towards the middle band (${middle_band:.2f})."
     else: return f"The price (${close_price:.2f}) is currently trading within the Bollinger Bands (Lower: ${lower_band:.2f}, Upper: ${upper_band:.2f}), around the middle band (SMA20: ${middle_band:.2f})."
 
-# --- Helper for common layout elements (REVISED LAYOUT STRUCTURE) ---
-# REMOVED height parameter from function definition and update_layout
+# --- Helper function to get plot data range ---
+def _get_plot_data(df, plot_period_years=3):
+    """Slices the DataFrame to the specified number of recent years."""
+    if df.empty or 'Date' not in df.columns:
+        return df
+    
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values('Date')
+    last_date = df['Date'].iloc[-1]
+    start_date = last_date - pd.DateOffset(years=plot_period_years)
+    
+    # Ensure start_date doesn't go before the first date in the data
+    first_date = df['Date'].iloc[0]
+    start_date = max(start_date, first_date)
+    
+    return df[df['Date'] >= start_date].copy()
+
+
+# --- Helper for common layout elements (REVISED LAYOUT STRUCTURE - Keep as before) ---
 def _configure_indicator_layout(fig, title):
     fig.update_layout(
-        # 1. Title at the top
         title=dict(
-            text=title,
-            y=0.98, # Position title very high
-            x=0.5,
-            xanchor='center',
-            yanchor='top',
-            font=dict(size=14)
+            text=title, y=0.98, x=0.5, xanchor='center', yanchor='top', font=dict(size=14)
         ),
-        # 2. Legend below the title
         legend=dict(
-            orientation="h",    # Horizontal layout
-            yanchor="top",      # Anchor legend block from its top
-            y=0.92,             # Position below the title (y=0.98)
-            xanchor="center",
-            x=0.5,
-            font=dict(size=10) # Smaller legend font
+            orientation="h", yanchor="top", y=0.92, xanchor="center", x=0.5, font=dict(size=10)
         ),
-        # 3. Range Selector positioned via update_xaxes below
-
-        # 4. Plot Area (adjust domain and margins)
-        # Make space at the top for Title, Legend, RangeSelector
-        margin=dict(l=35, r=25, t=100, b=40), # Increased TOP margin significantly
-        # Adjust y-axis domain to prevent overlap with elements above
-        # Using slightly less than space remaining after range selector to avoid overlap
-        yaxis=dict(domain=[0, 0.78]),
-
-        # height=height, # <-- REMOVED fixed height
+        margin=dict(l=35, r=25, t=100, b=40),
+        yaxis=dict(domain=[0, 0.78]), # Adjusted domain to leave space for range selector
         template="plotly_white",
-        autosize=True, # Explicitly ensure autosize is on (it's default but good practice)
-        xaxis_rangeslider_visible=False, # Keep this off for indicators
+        autosize=True,
+        xaxis_rangeslider_visible=False,
         xaxis_automargin=True,
         yaxis_automargin=True
     )
-
-    # Update X-Axis specifically for Range Selector positioning
     fig.update_xaxes(
-        # Keep domain spanning full width for axis ticks/labels
         domain=[0, 1],
-        # Position Range Selector below Legend
         rangeselector=dict(
             buttons=list([
                 dict(count=1, label="1M", step="month", stepmode="backward"),
@@ -120,170 +117,188 @@ def _configure_indicator_layout(fig, title):
                 dict(count=1, label="YTD", step="year", stepmode="todate"),
                 dict(count=1, label="1Y", step="year", stepmode="backward"),
                 dict(count=3, label="3Y", step="year", stepmode="backward"),
-                dict(count=5, label="5Y", step="year", stepmode="backward"),
-                dict(step="all")
+                 # Removed 5Y button as default plot range is 3Y now
+                dict(step="all", label="All") # Add 'All' button back
             ]),
             yanchor='top',
-            y=0.84, # Position below the legend (y=0.92)
-            xanchor='left', # Align buttons left for consistency
-            x=0.01,
-            font_size=10
-        ),
-        tickfont=dict(size=10) # Keep tick font size adjustment
-    )
-    # Update Y-Axis font size
-    fig.update_yaxes(tickfont=dict(size=10))
-
-    # Set initial visible range (last 1 year) - Keep this logic
-    if fig.data and len(fig.data[0].x) > 0:
-         # Check if data exists before accessing [-1]
-         last_date_in_data = fig.data[0].x[-1]
-         first_date_in_data = fig.data[0].x[0]
-         default_start = max(first_date_in_data, last_date_in_data - pd.DateOffset(years=1))
-         # Ensure start date is not after end date if data is less than 1 year
-         if default_start > last_date_in_data:
-             default_start = first_date_in_data
-         fig.update_xaxes(range=[default_start, last_date_in_data])
-
-    return fig
-
-# --- Plotting Functions using the REVISED layout ---
-
-def plot_price_bollinger(df, ticker):
-    if len(df) < 20: return None, "Insufficient data for Bollinger Bands."
-    df['BB_Upper'], df['BB_Middle'], df['BB_Lower'] = calculate_bollinger_bands(df['Close'])
-    df_plot = df.dropna(subset=['BB_Upper'])
-    if df_plot.empty: return None, "Bollinger Bands could not be calculated."
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['BB_Upper'], line=dict(color='rgba(211, 211, 211, 0.8)', width=1.5), name='Upper Band'))
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['BB_Lower'], line=dict(color='rgba(211, 211, 211, 0.8)', width=1.5), fill='tonexty', fillcolor='rgba(211, 211, 211, 0.1)', name='Lower Band'))
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['BB_Middle'], name='SMA20', line=dict(color='#ff7f0e', width=1.5, dash='dash')))
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['Close'], name='Close', line=dict(color='#00008B', width=2)))
-    # Apply REVISED layout helper (no height passed)
-    fig = _configure_indicator_layout(fig, f'{ticker} Price & Bollinger Bands')
-    fig.update_yaxes(title_text="Price")
-    latest_valid_data = df_plot.iloc[-1]
-    conclusion = get_bb_conclusion(latest_valid_data.get('Close'), latest_valid_data.get('BB_Upper'), latest_valid_data.get('BB_Lower'), latest_valid_data.get('BB_Middle'))
-    return fig, conclusion
-
-def plot_rsi(df, ticker):
-    if len(df) < 15: return None, "Insufficient data for RSI (14)."
-    df['RSI'] = calculate_rsi(df['Close'])
-    df_plot = df.dropna(subset=['RSI'])
-    if df_plot.empty: return None, "RSI could not be calculated."
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['RSI'], name='RSI', line=dict(color='#8A2BE2', width=2)))
-    fig.add_hline(y=70, line_dash="dash", line_color="#DC143C", opacity=0.8, annotation_text="Overbought (70)", annotation_position="bottom right")
-    fig.add_hline(y=30, line_dash="dash", line_color="#228B22", opacity=0.8, annotation_text="Oversold (30)", annotation_position="bottom right")
-    # Apply REVISED layout helper (no height passed)
-    fig = _configure_indicator_layout(fig, f'Relative Strength Index (RSI 14)')
-    fig.update_yaxes(title_text="RSI", range=[0, 100])
-    latest_valid_data = df_plot.iloc[-1]
-    conclusion = get_rsi_conclusion(latest_valid_data.get('RSI'))
-    return fig, conclusion
-
-def plot_macd_lines(df, ticker):
-    if len(df) < 35: return None, "Insufficient data for MACD (12, 26, 9)."
-    df['MACD_Line'], df['MACD_Signal'], df['MACD_Hist'] = calculate_macd(df['Close'])
-    df_plot = df.dropna(subset=['MACD_Line', 'MACD_Signal'])
-    if len(df_plot) < 2: return None, "Insufficient valid MACD Line/Signal data."
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['MACD_Line'], name='MACD Line', line=dict(color='#191970', width=2)))
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['MACD_Signal'], name='Signal Line', line=dict(color='#FF4500', width=2)))
-    fig.add_hline(y=0, line_dash="dash", line_color="grey", opacity=0.5)
-    # Apply REVISED layout helper (no height passed)
-    fig = _configure_indicator_layout(fig, f'MACD Line vs Signal Line')
-    fig.update_yaxes(title_text="MACD Value")
-    # Conclusion logic remains same
-    df_plot_hist = df.dropna(subset=['MACD_Line', 'MACD_Signal', 'MACD_Hist'])
-    if len(df_plot_hist) < 2: conclusion = "MACD conclusion requires more data."
-    else:
-        latest = df_plot_hist.iloc[-1]; prev = df_plot_hist.iloc[-2]
-        conclusion = get_macd_conclusion(latest.get('MACD_Line'), latest.get('MACD_Signal'), latest.get('MACD_Hist'), prev.get('MACD_Hist'))
-    return fig, conclusion
-
-def plot_macd_histogram(df, ticker):
-    if len(df) < 35: return None, "Insufficient data for MACD (12, 26, 9)."
-    # Ensure MACD is calculated if missing
-    if 'MACD_Hist' not in df.columns:
-        df['MACD_Line'], df['MACD_Signal'], df['MACD_Hist'] = calculate_macd(df['Close'])
-    df_plot = df.dropna(subset=['MACD_Hist'])
-    if len(df_plot) < 2: return None, "Insufficient valid MACD Histogram data."
-    fig = go.Figure()
-    colors = np.where(df_plot['MACD_Hist'] < 0, '#DC143C', '#228B22')
-    fig.add_trace(go.Bar(x=df_plot['Date'], y=df_plot['MACD_Hist'], name='MACD Hist', marker_color=colors))
-    # Apply REVISED layout helper (no height passed)
-    fig = _configure_indicator_layout(fig, f'MACD Histogram')
-    fig.update_yaxes(title_text="Histogram Value")
-    # Conclusion logic remains same
-    df_plot_full = df.dropna(subset=['MACD_Line', 'MACD_Signal', 'MACD_Hist'])
-    if len(df_plot_full) < 2: conclusion = "MACD conclusion requires more data."
-    else:
-        latest = df_plot_full.iloc[-1]; prev = df_plot_full.iloc[-2]
-        conclusion = get_macd_conclusion(latest.get('MACD_Line'), latest.get('MACD_Signal'), latest.get('MACD_Hist'), prev.get('MACD_Hist'))
-    return fig, conclusion
-
-# --- Historical Chart (REVISED LAYOUT STRUCTURE) ---
-def plot_historical_line_chart(df, ticker):
-    df['Date'] = pd.to_datetime(df['Date'])
-    df = df.sort_values('Date')
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'], name='Close', line=dict(color='#00008B', width=2)), secondary_y=False)
-    if 'Volume' in df.columns and not df['Volume'].isnull().all():
-        df['Volume_SMA20'] = calculate_volume_sma(df, 20)
-        fig.add_trace(go.Bar(x=df['Date'], y=df['Volume'], name='Volume', marker_color='#FF8C00', opacity=0.35), secondary_y=True)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['Volume_SMA20'], name='Volume SMA20', line=dict(color='#8B4513', width=1.5, dash='dot')), secondary_y=True)
-        # Adjust secondary y-axis domain to match primary plot area
-        fig.update_yaxes(title_text="Volume", secondary_y=True, domain=[0, 0.78], showgrid=False, title_font_size=10, tickfont_size=10, automargin=True)
-    # Adjust primary y-axis domain
-    fig.update_yaxes(title_text="Price ($)", secondary_y=False, domain=[0, 0.78], title_font_size=10, tickfont_size=10, automargin=True)
-
-    # Apply REVISED layout structure
-    fig.update_layout(
-        # 1. Title
-        title=dict(text=f'{ticker} Historical Price & Volume', y=0.98, x=0.5, xanchor='center', yanchor='top', font_size=14),
-        # 2. Legend
-        legend=dict(orientation="h", yanchor="top", y=0.92, xanchor="center", x=0.5, font_size=10),
-        # 3. Range Selector positioned via update_xaxes below
-        # 4. Plot Area
-        margin=dict(l=35, r=35, t=100, b=40), # Increased top margin, ensure right margin accommodates secondary y-axis label potentially
-        # height=450, # <-- REMOVED fixed height
-        template="plotly_white",
-        autosize=True, # Explicitly ensure autosize is on
-        xaxis_rangeslider_visible=False, # Keep off
-        xaxis_automargin=True,
-        # Y-axis domains are set above
-    )
-    # Update X-Axis specifically for Range Selector positioning below legend
-    fig.update_xaxes(
-        domain=[0, 1], # Full width for x-axis itself
-        rangeselector=dict(
-            buttons=list([
-                dict(count=1, label="1M", step="month", stepmode="backward"),
-                dict(count=3, label="3M", step="month", stepmode="backward"),
-                dict(count=6, label="6M", step="month", stepmode="backward"),
-                dict(count=1, label="YTD", step="year", stepmode="todate"),
-                dict(count=1, label="1Y", step="year", stepmode="backward"),
-                dict(count=3, label="3Y", step="year", stepmode="backward"),
-                dict(count=5, label="5Y", step="year", stepmode="backward"),
-                dict(step="all")
-            ]),
-            yanchor='top',
-            y=0.84, # Below legend (y=0.92)
+            y=0.84, # Position below legend
             xanchor='left',
             x=0.01,
             font_size=10
         ),
         tickfont=dict(size=10)
     )
+    fig.update_yaxes(tickfont=dict(size=10))
 
-    # Set initial visible range (last 1 year) - Keep this logic
-    if not df.empty:
-        last_date_in_data = df['Date'].max()
-        first_date_in_data = df['Date'].min()
-        default_start = max(first_date_in_data, last_date_in_data - pd.DateOffset(years=1))
-        if default_start > last_date_in_data: default_start = first_date_in_data
-        fig.update_xaxes(range=[default_start, last_date_in_data])
+    # Set initial visible range (last 1 year) - Keep this logic for initial zoom
+    if fig.data and len(fig.data[0].x) > 0:
+         last_date_in_data = fig.data[0].x[-1]
+         first_date_in_data = fig.data[0].x[0]
+         # Ensure last_date is a Timestamp for comparison/offset
+         if not isinstance(last_date_in_data, pd.Timestamp):
+             try: last_date_in_data = pd.to_datetime(last_date_in_data)
+             except: pass # Keep original if conversion fails
+
+         default_start = first_date_in_data # Default to start of data
+         if isinstance(last_date_in_data, pd.Timestamp):
+             one_year_back = last_date_in_data - pd.DateOffset(years=1)
+             # Make sure one_year_back is not before first_date
+             default_start = max(first_date_in_data, one_year_back)
+
+         # Ensure start date is not after end date
+         if default_start > last_date_in_data:
+             default_start = first_date_in_data
+
+         fig.update_xaxes(range=[default_start, last_date_in_data])
+
+    return fig
+
+
+# --- Plotting Functions using the REVISED layout AND limited data range ---
+
+# <<< MODIFIED plot_period_years parameter added >>>
+def plot_price_bollinger(df, ticker, plot_period_years=3):
+    """Plots Price and Bollinger Bands for the specified period."""
+    if len(df) < 20: return None, "Insufficient data for Bollinger Bands."
+    # Calculate on full df first
+    df['BB_Upper'], df['BB_Middle'], df['BB_Lower'] = calculate_bollinger_bands(df['Close'])
+    # Get data for the plotting period
+    df_plot_range = _get_plot_data(df, plot_period_years)
+    df_plot = df_plot_range.dropna(subset=['BB_Upper', 'BB_Middle', 'BB_Lower', 'Close']) # Ensure all needed cols are present
+
+    if df_plot.empty: return None, "Bollinger Bands could not be calculated for the selected period."
+
+    fig = go.Figure()
+    # Plot using df_plot (limited range)
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['BB_Upper'], line=dict(color='rgba(211, 211, 211, 0.8)', width=1.5), name='Upper Band'))
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['BB_Lower'], line=dict(color='rgba(211, 211, 211, 0.8)', width=1.5), fill='tonexty', fillcolor='rgba(211, 211, 211, 0.1)', name='Lower Band'))
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['BB_Middle'], name='SMA20', line=dict(color='#ff7f0e', width=1.5, dash='dash')))
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['Close'], name='Close', line=dict(color='#00008B', width=2)))
+
+    fig = _configure_indicator_layout(fig, f'{ticker} Price & Bollinger Bands ({plot_period_years}Y)')
+    fig.update_yaxes(title_text="Price")
+
+    # Conclusion based on the LATEST value from the original df
+    latest_valid_data = df.dropna(subset=['Close', 'BB_Upper', 'BB_Lower', 'BB_Middle']).iloc[-1] if not df.dropna(subset=['Close', 'BB_Upper', 'BB_Lower', 'BB_Middle']).empty else None
+    conclusion = get_bb_conclusion(
+        latest_valid_data['Close'] if latest_valid_data is not None else None,
+        latest_valid_data['BB_Upper'] if latest_valid_data is not None else None,
+        latest_valid_data['BB_Lower'] if latest_valid_data is not None else None,
+        latest_valid_data['BB_Middle'] if latest_valid_data is not None else None
+    ) if latest_valid_data is not None else "Bollinger Band conclusion requires more data."
+
+    return fig, conclusion
+
+# <<< MODIFIED plot_period_years parameter added >>>
+def plot_rsi(df, ticker, plot_period_years=3):
+    """Plots RSI for the specified period."""
+    if len(df) < 15: return None, "Insufficient data for RSI (14)."
+    # Calculate on full df
+    df['RSI'] = calculate_rsi(df['Close'])
+     # Get data for the plotting period
+    df_plot_range = _get_plot_data(df, plot_period_years)
+    df_plot = df_plot_range.dropna(subset=['RSI']) # Ensure RSI is present
+
+    if df_plot.empty: return None, "RSI could not be calculated for the selected period."
+
+    fig = go.Figure()
+    # Plot using df_plot
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['RSI'], name='RSI', line=dict(color='#8A2BE2', width=2)))
+    fig.add_hline(y=70, line_dash="dash", line_color="#DC143C", opacity=0.8, annotation_text="Overbought (70)", annotation_position="bottom right")
+    fig.add_hline(y=30, line_dash="dash", line_color="#228B22", opacity=0.8, annotation_text="Oversold (30)", annotation_position="bottom right")
+
+    fig = _configure_indicator_layout(fig, f'Relative Strength Index (RSI 14) ({plot_period_years}Y)')
+    fig.update_yaxes(title_text="RSI", range=[0, 100])
+
+    # Conclusion based on LATEST value from original df
+    latest_valid_data = df.dropna(subset=['RSI']).iloc[-1] if not df.dropna(subset=['RSI']).empty else None
+    conclusion = get_rsi_conclusion(latest_valid_data['RSI'] if latest_valid_data is not None else None) if latest_valid_data is not None else "RSI conclusion requires more data."
+
+    return fig, conclusion
+
+# <<< MODIFIED plot_period_years parameter added >>>
+def plot_macd_lines(df, ticker, plot_period_years=3):
+    """Plots MACD Line vs Signal Line for the specified period."""
+    if len(df) < 35: return None, "Insufficient data for MACD (12, 26, 9)."
+    # Calculate on full df
+    df['MACD_Line'], df['MACD_Signal'], df['MACD_Hist'] = calculate_macd(df['Close'])
+    # Get data for plotting period
+    df_plot_range = _get_plot_data(df, plot_period_years)
+    df_plot = df_plot_range.dropna(subset=['MACD_Line', 'MACD_Signal']) # Ensure lines are present
+
+    if len(df_plot) < 2: return None, "Insufficient valid MACD Line/Signal data for the selected period."
+
+    fig = go.Figure()
+    # Plot using df_plot
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['MACD_Line'], name='MACD Line', line=dict(color='#191970', width=2)))
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['MACD_Signal'], name='Signal Line', line=dict(color='#FF4500', width=2)))
+    fig.add_hline(y=0, line_dash="dash", line_color="grey", opacity=0.5)
+
+    fig = _configure_indicator_layout(fig, f'MACD Line vs Signal Line ({plot_period_years}Y)')
+    fig.update_yaxes(title_text="MACD Value")
+
+    # Conclusion based on LATEST values from original df
+    df_full_hist = df.dropna(subset=['MACD_Line', 'MACD_Signal', 'MACD_Hist'])
+    if len(df_full_hist) < 2: conclusion = "MACD conclusion requires more data."
+    else:
+        latest = df_full_hist.iloc[-1]; prev = df_full_hist.iloc[-2]
+        conclusion = get_macd_conclusion(latest.get('MACD_Line'), latest.get('MACD_Signal'), latest.get('MACD_Hist'), prev.get('MACD_Hist'))
+
+    return fig, conclusion
+
+# <<< MODIFIED plot_period_years parameter added >>>
+def plot_macd_histogram(df, ticker, plot_period_years=3):
+    """Plots MACD Histogram for the specified period."""
+    if len(df) < 35: return None, "Insufficient data for MACD (12, 26, 9)."
+    # Ensure MACD is calculated on full df
+    if 'MACD_Hist' not in df.columns:
+        df['MACD_Line'], df['MACD_Signal'], df['MACD_Hist'] = calculate_macd(df['Close'])
+
+    # Get data for plotting period
+    df_plot_range = _get_plot_data(df, plot_period_years)
+    df_plot = df_plot_range.dropna(subset=['MACD_Hist']) # Ensure histogram is present
+
+    if len(df_plot) < 2: return None, "Insufficient valid MACD Histogram data for the selected period."
+
+    fig = go.Figure()
+    # Plot using df_plot
+    colors = np.where(df_plot['MACD_Hist'] < 0, '#DC143C', '#228B22')
+    fig.add_trace(go.Bar(x=df_plot['Date'], y=df_plot['MACD_Hist'], name='MACD Hist', marker_color=colors))
+
+    fig = _configure_indicator_layout(fig, f'MACD Histogram ({plot_period_years}Y)')
+    fig.update_yaxes(title_text="Histogram Value")
+
+    # Conclusion based on LATEST values from original df (same as plot_macd_lines)
+    df_full_hist = df.dropna(subset=['MACD_Line', 'MACD_Signal', 'MACD_Hist'])
+    if len(df_full_hist) < 2: conclusion = "MACD conclusion requires more data."
+    else:
+        latest = df_full_hist.iloc[-1]; prev = df_full_hist.iloc[-2]
+        conclusion = get_macd_conclusion(latest.get('MACD_Line'), latest.get('MACD_Signal'), latest.get('MACD_Hist'), prev.get('MACD_Hist'))
+
+    return fig, conclusion
+
+
+# --- Historical Chart (REVISED LAYOUT STRUCTURE - Keep as before, range selector handles display) ---
+def plot_historical_line_chart(df, ticker):
+    """Plots Historical Price and Volume."""
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values('Date')
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'], name='Close', line=dict(color='#00008B', width=2)), secondary_y=False)
+
+    # Calculate Volume SMA on the full df
+    if 'Volume' in df.columns and not df['Volume'].isnull().all():
+        df['Volume_SMA20'] = calculate_volume_sma(df, 20) # Calculate on full df
+        fig.add_trace(go.Bar(x=df['Date'], y=df['Volume'], name='Volume', marker_color='#FF8C00', opacity=0.35), secondary_y=True)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['Volume_SMA20'], name='Volume SMA20', line=dict(color='#8B4513', width=1.5, dash='dot')), secondary_y=True)
+        fig.update_yaxes(title_text="Volume", secondary_y=True, domain=[0, 0.78], showgrid=False, title_font_size=10, tickfont_size=10, automargin=True)
+
+    fig.update_yaxes(title_text="Price ($)", secondary_y=False, domain=[0, 0.78], title_font_size=10, tickfont_size=10, automargin=True)
+
+    # Apply REVISED layout structure (uses _configure_indicator_layout which handles range selector etc.)
+    fig = _configure_indicator_layout(fig, f'{ticker} Historical Price & Volume')
+    # No specific period in title as range selector handles it
 
     return fig
 
@@ -293,45 +308,97 @@ def calculate_detailed_ta(df):
     """Calculates additional indicators for the summary report."""
     if df is None or df.empty: return {}
     ta_summary = {}; df = df.copy(); df['Date'] = pd.to_datetime(df['Date']); df = df.sort_values('Date')
+    last_row = None
+    if not df.empty:
+        last_row = df.iloc[-1]
+
+    # SMAs
     for period in [20, 50, 100, 200]:
+        sma_col = f'SMA_{period}'
         if len(df) >= period:
-            sma_col = f'SMA_{period}';
             df[sma_col] = calculate_sma(df['Close'], period);
-            # Check if the calculated value is NaN before assigning
-            sma_val = df[sma_col].iloc[-1]
+            sma_val = df[sma_col].iloc[-1] # Get latest SMA
             ta_summary[sma_col] = sma_val if not pd.isna(sma_val) else None
-        else: ta_summary[f'SMA_{period}'] = None
+        else: ta_summary[sma_col] = None
+
+    # Volume Analysis
     if 'Volume' in df.columns:
+        latest_volume = df['Volume'].iloc[-1] if not df.empty else None
         if len(df) >= 20:
-             df['Volume_SMA20'] = calculate_volume_sma(df, 20); latest_volume = df['Volume'].iloc[-1]; latest_vol_sma = df['Volume_SMA20'].iloc[-1]
-             if not pd.isna(latest_volume) and not pd.isna(latest_vol_sma) and latest_vol_sma > 0: ta_summary['Volume_vs_SMA20_Ratio'] = latest_volume / latest_vol_sma
+             df['Volume_SMA20'] = calculate_volume_sma(df, 20);
+             latest_vol_sma = df['Volume_SMA20'].iloc[-1]
+             ta_summary['Volume_SMA20'] = latest_vol_sma if not pd.isna(latest_vol_sma) else None
+             if not pd.isna(latest_volume) and not pd.isna(latest_vol_sma) and latest_vol_sma > 0:
+                 ta_summary['Volume_vs_SMA20_Ratio'] = latest_volume / latest_vol_sma
              else: ta_summary['Volume_vs_SMA20_Ratio'] = None
-             ta_summary['Volume_SMA20'] = latest_vol_sma if not pd.isna(latest_vol_sma) else None # Handle NaN
-        else: ta_summary['Volume_vs_SMA20_Ratio'] = None; ta_summary['Volume_SMA20'] = None
+        else:
+             ta_summary['Volume_vs_SMA20_Ratio'] = None; ta_summary['Volume_SMA20'] = None
+
         if len(df) >= 6: # Need at least 6 days for a 5-day lookback plus the current day
             vol_slice = df['Volume'].iloc[-5:] # Last 5 days volume
-            if not vol_slice.empty and not pd.isna(df['Volume'].iloc[-1]): # Ensure current volume and slice exist
+            if not vol_slice.empty and not pd.isna(latest_volume):
                 mean_vol_5d = vol_slice.mean()
-                if not pd.isna(mean_vol_5d) and mean_vol_5d > 0: # Ensure mean is valid
-                    if df['Volume'].iloc[-1] > mean_vol_5d * 1.1: ta_summary['Volume_Trend_5D'] = "Increasing"
-                    elif df['Volume'].iloc[-1] < mean_vol_5d * 0.9: ta_summary['Volume_Trend_5D'] = "Decreasing"
+                if not pd.isna(mean_vol_5d) and mean_vol_5d > 0:
+                    if latest_volume > mean_vol_5d * 1.1: ta_summary['Volume_Trend_5D'] = "Increasing"
+                    elif latest_volume < mean_vol_5d * 0.9: ta_summary['Volume_Trend_5D'] = "Decreasing"
                     else: ta_summary['Volume_Trend_5D'] = "Mixed"
-                else: ta_summary['Volume_Trend_5D'] = None # Cannot determine trend if mean is zero/NaN
+                else: ta_summary['Volume_Trend_5D'] = None
             else: ta_summary['Volume_Trend_5D'] = None
         else: ta_summary['Volume_Trend_5D'] = None
+    else:
+         ta_summary['Volume_vs_SMA20_Ratio'] = None; ta_summary['Volume_SMA20'] = None
+         ta_summary['Volume_Trend_5D'] = None
+
+    # Support & Resistance
     lookback = 30
     if len(df) >= lookback:
-        support = df['Low'].iloc[-lookback:].min()
-        resistance = df['High'].iloc[-lookback:].max()
+        recent_data = df.iloc[-lookback:]
+        support = recent_data['Low'].min()
+        resistance = recent_data['High'].max()
         ta_summary['Support_30D'] = support if not pd.isna(support) else None
         ta_summary['Resistance_30D'] = resistance if not pd.isna(resistance) else None
     else: ta_summary['Support_30D'] = None; ta_summary['Resistance_30D'] = None
-    # Add RSI explicitly if needed elsewhere, ensure it's calculated
+
+    # RSI
     if len(df) >= 15:
          df['RSI_14'] = calculate_rsi(df['Close'], 14)
          rsi_val = df['RSI_14'].iloc[-1]
          ta_summary['RSI_14'] = rsi_val if not pd.isna(rsi_val) else None
     else:
          ta_summary['RSI_14'] = None
+
+    # MACD (needed for conclusion later)
+    if len(df) >= 35:
+        df['MACD_Line'], df['MACD_Signal'], df['MACD_Hist'] = calculate_macd(df['Close'])
+        df_macd_valid = df.dropna(subset=['MACD_Line', 'MACD_Signal', 'MACD_Hist'])
+        if len(df_macd_valid) >= 2:
+            latest_macd = df_macd_valid.iloc[-1]
+            prev_macd = df_macd_valid.iloc[-2]
+            ta_summary['MACD_Line'] = latest_macd['MACD_Line']
+            ta_summary['MACD_Signal'] = latest_macd['MACD_Signal']
+            ta_summary['MACD_Hist'] = latest_macd['MACD_Hist']
+            ta_summary['MACD_Hist_Prev'] = prev_macd['MACD_Hist']
+        else:
+            ta_summary['MACD_Line'] = ta_summary['MACD_Signal'] = ta_summary['MACD_Hist'] = ta_summary['MACD_Hist_Prev'] = None
+    else:
+        ta_summary['MACD_Line'] = ta_summary['MACD_Signal'] = ta_summary['MACD_Hist'] = ta_summary['MACD_Hist_Prev'] = None
+
+
+    # BB (needed for conclusion later)
+    if len(df) >= 20:
+        df['BB_Upper'], df['BB_Middle'], df['BB_Lower'] = calculate_bollinger_bands(df['Close'])
+        df_bb_valid = df.dropna(subset=['Close', 'BB_Upper', 'BB_Middle', 'BB_Lower'])
+        if not df_bb_valid.empty:
+            latest_bb = df_bb_valid.iloc[-1]
+            ta_summary['BB_Upper'] = latest_bb['BB_Upper']
+            ta_summary['BB_Middle'] = latest_bb['BB_Middle']
+            ta_summary['BB_Lower'] = latest_bb['BB_Lower']
+        else:
+            ta_summary['BB_Upper'] = ta_summary['BB_Middle'] = ta_summary['BB_Lower'] = None
+    else:
+        ta_summary['BB_Upper'] = ta_summary['BB_Middle'] = ta_summary['BB_Lower'] = None
+
+    # Add current price for convenience
+    ta_summary['Current_Price'] = df['Close'].iloc[-1] if not df.empty else None
 
     return ta_summary
