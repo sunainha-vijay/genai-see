@@ -4,7 +4,8 @@ import numpy as np  # Added missing import
 import pandas_datareader as pdr
 from datetime import datetime
 
-FRED_API_KEY = 'your fred api key'
+#FRED_API_KEY = 'your fred api key'
+FRED_API_KEY = os.environ.get('FRED_API_KEY')
 
 def fetch_macro_indicators(start_date=None, end_date=None):
     """
