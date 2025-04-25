@@ -15,7 +15,7 @@ def fetch_stock_data(ticker, start_date=None, end_date=None):
             raise ValueError("start_date must be before end_date")
     
     # If no dates are provided, use "max" to fetch the entire available period.
-    period = "max" if (start_date is None and end_date is None) else None
+    period = "10y" if (start_date is None and end_date is None) else None
 
     logger.info(f"Fetching data for ticker: {ticker} from {start_date or 'the beginning'} to {end_date or 'today'}")
     
