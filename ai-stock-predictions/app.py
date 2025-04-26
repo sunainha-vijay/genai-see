@@ -1,10 +1,11 @@
 # app.py
-from flask import Flask, render_template, request, send_from_directory, jsonify, url_for, request # Keep request
+from flask import Flask, render_template, request, send_from_directory, jsonify, url_for
 import os
 import time
 import traceback
 import re # Import the 're' module for regex
-from pipeline import run_pipeline
+# --- Import BOTH pipeline functions ---
+from pipeline import run_pipeline, run_wp_pipeline
 from urllib.parse import urljoin, quote # Import quote for query parameters
 
 # --- Get the absolute path to the directory where app.py is located ---
@@ -34,29 +35,27 @@ def serve_static(filename):
         cache_timeout=0
     )
 
+# --- Original Routes (Unchanged) ---
 @app.route('/', methods=['GET'])
 def index():
     """Serves the main homepage."""
     return render_template('stock-analysis-homepage.html')
 
-# --- NEW ROUTE ---
 @app.route('/report/view')
 def show_report_page():
     """Renders the report viewer page, displaying the report via iframe."""
     report_url = request.args.get('url') # Get report file URL from query param
     ticker = request.args.get('ticker', 'Unknown') # Get ticker for title
-    # Basic validation/sanitization for URL might be needed in production
     return render_template('report_display.html', report_url=report_url, ticker=ticker)
-# --- END NEW ROUTE ---
 
 @app.route('/generate', methods=['POST'])
 def generate_report():
     """
-    Handles the asynchronous request to generate the stock analysis report.
+    Handles the asynchronous request to generate the standard stock analysis report.
     Returns a JSON response with the status and the URL to the viewer page.
     """
     start_time = time.time()
-    print("\n--- Received /generate request ---")
+    print("\n--- Received /generate request (Original Report) ---")
 
     if not request.is_json:
         print("Error: Request must be JSON")
@@ -66,87 +65,151 @@ def generate_report():
     ticker = data.get('ticker', '').strip().upper()
     print(f"Received ticker: {ticker}")
 
-    # --- UPDATED VALIDATION ---
-    # Allow letters, numbers, '.', '^', '-' and remove length limit
-    # Adjusted regex to be more permissive: Allows alphanumeric, caret, dot, hyphen.
-    # You might want to refine this further based on exact allowed symbols.
+    # Use the more flexible validation pattern
     valid_ticker_pattern = r'^[A-Z0-9\^.-]+$'
     if not ticker or not re.match(valid_ticker_pattern, ticker):
         error_message = "Invalid ticker symbol format. Please use standard symbols (e.g., AAPL, BRK-A, ^GSPC)."
         print(f"Validation Error: {error_message}")
         return jsonify({'status': 'error', 'message': error_message}), 400
-    # --- END UPDATED VALIDATION ---
-
 
     try:
         timestamp = str(int(time.time()))
-        print(f"Running pipeline for {ticker} with timestamp {timestamp}...")
+        print(f"Running ORIGINAL pipeline for {ticker} with timestamp {timestamp}...")
 
+        # Call the original pipeline function
         pipeline_result = run_pipeline(ticker, timestamp, APP_ROOT)
 
         report_path = None
-        # Assuming pipeline returns (model, forecast, report_path, report_html)
-        # We only need report_path here
-        if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4: # Check for 4 elements
+        if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4:
             report_path = pipeline_result[2] # report_path is the 3rd element
 
         if report_path and os.path.exists(report_path):
-            end_time = time.time()
-            duration = end_time - start_time
-            print(f"Pipeline completed successfully for {ticker} in {duration:.2f} seconds.")
-            print(f"Report saved at: {report_path}")
-
+            end_time = time.time(); duration = end_time - start_time
+            print(f"Original pipeline completed successfully for {ticker} in {duration:.2f} seconds.")
             report_filename = os.path.basename(report_path)
-
-            # --- Generate URL for the static report file itself ---
-            # Use relative URL is fine as iframe src will resolve it
             report_file_url = url_for('serve_static', filename=report_filename, _external=False)
-            print(f"Generated static report file URL: {report_file_url}")
-
-            # --- Generate URL for the viewer page, passing the report file URL as query param ---
-            # Make sure to URL-encode the report_file_url when adding it as a parameter
             viewer_url = url_for('show_report_page', ticker=ticker, url=report_file_url, _external=False)
             print(f"Generated viewer page URL: {viewer_url}")
 
-
-            # --- Return the VIEWER URL in the JSON response ---
             return jsonify({
-                'status': 'success',
-                'ticker': ticker,
-                'viewer_url': viewer_url, # Send URL of the page that *contains* the iframe
-                'duration': f"{duration:.2f}"
+                'status': 'success', 'ticker': ticker,
+                'viewer_url': viewer_url, 'duration': f"{duration:.2f}"
             })
         else:
-            # Check if pipeline_result has the 4th element (report_html) even if path saving failed
-            report_html_content = None
-            if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4:
-                 report_html_content = pipeline_result[3]
-
+            # Handle report generation failure (same logic as before)
+            report_html_content = pipeline_result[3] if pipeline_result and len(pipeline_result) >= 4 else None
             if report_html_content:
-                 # If HTML was generated but file saving failed or wasn't returned properly
-                 error_message = f"Report generation completed for {ticker}, but failed to save or retrieve the report file path. Check file system permissions or pipeline logic."
-                 print(f"Pipeline Warning: {error_message}")
-                 # Still might be able to proceed if html content is available?
-                 # For now, return error, but you could potentially handle this differently.
-                 return jsonify({'status': 'error', 'message': error_message}), 500
+                 error_message = f"Report generation completed for {ticker}, but failed to save or retrieve the report file path."
             else:
-                 # If pipeline truly failed to generate anything
-                 error_message = f"Report generation failed for {ticker}. Pipeline did not produce a valid report. Check logs."
-                 print(f"Pipeline Error: {error_message}")
-                 return jsonify({'status': 'error', 'message': error_message}), 500
+                 error_message = f"Report generation failed for {ticker}. Pipeline did not produce a valid report."
+            print(f"Pipeline Error/Warning: {error_message}")
+            return jsonify({'status': 'error', 'message': error_message}), 500
 
-
-    # --- Exception Handling (Keep as before) ---
     except Exception as e:
-         print(f"An unexpected error occurred: {e}")
+         print(f"An unexpected error occurred in /generate: {e}")
          traceback.print_exc()
-         error_message = f"An unexpected error occurred while generating the report for {ticker}. Please try again later or contact support."
+         return jsonify({'status': 'error', 'message': f"An unexpected error occurred for {ticker}."}), 500
+
+
+# --- NEW Routes for WordPress Asset Generation ---
+
+@app.route('/wp-admin-generator') # Consider a more obscure path for privacy
+def wp_generator_page():
+    """Serves the private HTML page used to generate WP assets."""
+    # IMPORTANT: Add authentication/authorization here if this needs to be private
+    # For now, it's accessible to anyone who knows the URL.
+    # Example (very basic, replace with proper auth):
+    # if request.remote_addr != 'YOUR_IP_ADDRESS': # Very basic IP check
+    #     return "Access Denied", 403
+    print("Serving WP Generator page")
+    # Assumes you will create 'wp_generator.html' in the templates folder
+    return render_template('wp_generator.html')
+
+@app.route('/generate-wp-assets', methods=['POST'])
+def generate_wp_assets():
+    """
+    Handles the asynchronous request to generate WordPress assets (text HTML + image URLs).
+    Returns a JSON response with the HTML content and image URLs.
+    """
+    start_time = time.time()
+    print("\n+++ Received /generate-wp-assets request +++")
+
+    if not request.is_json:
+        print("Error: WP Asset Request must be JSON")
+        return jsonify({'status': 'error', 'message': 'Invalid request format. Expected JSON.'}), 400
+
+    data = request.get_json()
+    ticker = data.get('ticker', '').strip().upper()
+    print(f"Received WP ticker: {ticker}")
+
+    # Use the same flexible validation
+    valid_ticker_pattern = r'^[A-Z0-9\^.-]+$'
+    if not ticker or not re.match(valid_ticker_pattern, ticker):
+        error_message = "Invalid ticker symbol format. Please use standard symbols (e.g., AAPL, BRK-A, ^GSPC)."
+        print(f"WP Validation Error: {error_message}")
+        return jsonify({'status': 'error', 'message': error_message}), 400
+
+    try:
+        timestamp = str(int(time.time()))
+        print(f"Running WP pipeline for {ticker} with timestamp {timestamp}...")
+
+        # --- Call the NEW WordPress pipeline function ---
+        # Expecting (model, forecast, text_html, image_paths)
+        pipeline_result = run_wp_pipeline(ticker, timestamp, APP_ROOT)
+
+        if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4:
+            text_report_html = pipeline_result[2]
+            chart_image_paths = pipeline_result[3] # Dict of {'type': '/path/to/img.png'}
+
+            if text_report_html is not None:
+                end_time = time.time(); duration = end_time - start_time
+                print(f"WP pipeline completed successfully for {ticker} in {duration:.2f} seconds.")
+
+                # --- Generate URLs for the saved images ---
+                chart_image_urls = {}
+                if isinstance(chart_image_paths, dict):
+                    for chart_type, img_path in chart_image_paths.items():
+                        if img_path and os.path.exists(img_path):
+                            img_filename = os.path.basename(img_path)
+                            # Generate URL relative to the static folder
+                            chart_image_urls[chart_type] = url_for('serve_static', filename=img_filename, _external=False)
+                        else:
+                            print(f"Warning: WP Image path not found/invalid for '{chart_type}': {img_path}")
+
+                print(f"Generated WP Chart Image URLs: {chart_image_urls}")
+
+                # --- Return the TEXT HTML content and IMAGE URLs ---
+                return jsonify({
+                    'status': 'success',
+                    'ticker': ticker,
+                    'report_html': text_report_html,   # The actual text HTML string
+                    'chart_urls': chart_image_urls,    # Dict of image URLs
+                    'duration': f"{duration:.2f}"
+                })
+            else:
+                # Handle case where WP HTML wasn't generated
+                error_message = f"WP Asset generation failed for {ticker}. Pipeline did not produce HTML."
+                print(f"WP Pipeline Error: {error_message}")
+                return jsonify({'status': 'error', 'message': error_message}), 500
+        else:
+             # Handle case where WP pipeline failed earlier
+             error_message = f"WP Asset generation failed for {ticker}. Check logs."
+             print(f"WP Pipeline Error: {error_message}")
+             return jsonify({'status': 'error', 'message': error_message}), 500
+
+    except Exception as e:
+         print(f"An unexpected error occurred in /generate-wp-assets: {e}")
+         traceback.print_exc()
+         error_message = f"An unexpected error occurred while generating WP assets for {ticker}."
          return jsonify({'status': 'error', 'message': error_message}), 500
 
 
+# --- Main execution ---
 if __name__ == "__main__":
     print(f"App Root: {APP_ROOT}")
     print(f"Static Folder: {app.static_folder}")
     print(f"Template Folder: {app.template_folder}")
     print(f"Starting Flask server on http://0.0.0.0:5000")
+    # Use threaded=True if your pipeline tasks are CPU-bound and can benefit from concurrency
+    # Use debug=True only for development, set to False for production
     app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)

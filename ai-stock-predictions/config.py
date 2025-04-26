@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 # List of tickers; you can later add more.
-TICKERS = ["MSFT"]  # e.g., ["AAPL", "GOOGL", "MSFT"]
+TICKERS = ["PEP"]  # e.g., ["AAPL", "GOOGL", "MSFT"]
 
 # Date range for data collection
 START_DATE = "1900-01-01"  # Earliest practical date
