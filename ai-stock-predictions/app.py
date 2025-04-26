@@ -1,4 +1,4 @@
-# app.py
+# app.py (UPDATED)
 from flask import Flask, render_template, request, send_from_directory, jsonify, url_for
 import os
 import time
@@ -80,28 +80,41 @@ def generate_report():
         pipeline_result = run_pipeline(ticker, timestamp, APP_ROOT)
 
         report_path = None
-        if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4:
-            report_path = pipeline_result[2] # report_path is the 3rd element
+        report_html_content = None # Initialize HTML content
 
-        if report_path and os.path.exists(report_path):
+        if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4:
+            # Unpack results carefully
+            model, forecast, report_path, report_html_content = pipeline_result
+
+        # Check if the report was generated successfully (path exists OR html content is valid)
+        if (report_path and os.path.exists(report_path)) or (report_html_content and "Error Generating Report" not in report_html_content):
             end_time = time.time(); duration = end_time - start_time
             print(f"Original pipeline completed successfully for {ticker} in {duration:.2f} seconds.")
-            report_filename = os.path.basename(report_path)
-            report_file_url = url_for('serve_static', filename=report_filename, _external=False)
-            viewer_url = url_for('show_report_page', ticker=ticker, url=report_file_url, _external=False)
-            print(f"Generated viewer page URL: {viewer_url}")
+
+            # Prefer path if it exists, otherwise indicate HTML only
+            if report_path and os.path.exists(report_path):
+                report_filename = os.path.basename(report_path)
+                report_file_url = url_for('serve_static', filename=report_filename, _external=False)
+                viewer_url = url_for('show_report_page', ticker=ticker, url=report_file_url, _external=False)
+                print(f"Generated viewer page URL: {viewer_url}")
+                status_message = 'success'
+            else:
+                # HTML was generated but not saved
+                viewer_url = "#" # No direct view URL if file wasn't saved
+                status_message = 'success_html_only' # Indicate partial success
+                print("Report HTML generated but file not saved.")
+
 
             return jsonify({
-                'status': 'success', 'ticker': ticker,
+                'status': status_message, 'ticker': ticker,
                 'viewer_url': viewer_url, 'duration': f"{duration:.2f}"
             })
         else:
-            # Handle report generation failure (same logic as before)
-            report_html_content = pipeline_result[3] if pipeline_result and len(pipeline_result) >= 4 else None
-            if report_html_content:
-                 error_message = f"Report generation completed for {ticker}, but failed to save or retrieve the report file path."
-            else:
-                 error_message = f"Report generation failed for {ticker}. Pipeline did not produce a valid report."
+            # Handle report generation failure
+            error_message = f"Report generation failed for {ticker}. Check pipeline logs."
+            if report_html_content and "Error Generating Report" in report_html_content:
+                 error_message = f"Report generation failed for {ticker}. Pipeline returned an error report."
+
             print(f"Pipeline Error/Warning: {error_message}")
             return jsonify({'status': 'error', 'message': error_message}), 500
 
@@ -117,12 +130,7 @@ def generate_report():
 def wp_generator_page():
     """Serves the private HTML page used to generate WP assets."""
     # IMPORTANT: Add authentication/authorization here if this needs to be private
-    # For now, it's accessible to anyone who knows the URL.
-    # Example (very basic, replace with proper auth):
-    # if request.remote_addr != 'YOUR_IP_ADDRESS': # Very basic IP check
-    #     return "Access Denied", 403
     print("Serving WP Generator page")
-    # Assumes you will create 'wp_generator.html' in the templates folder
     return render_template('wp_generator.html')
 
 @app.route('/generate-wp-assets', methods=['POST'])
@@ -153,47 +161,42 @@ def generate_wp_assets():
         timestamp = str(int(time.time()))
         print(f"Running WP pipeline for {ticker} with timestamp {timestamp}...")
 
-        # --- Call the NEW WordPress pipeline function ---
-        # Expecting (model, forecast, text_html, image_paths)
+        # --- Call the WordPress pipeline function ---
+        # Expecting (model, forecast, text_html, image_urls_dict)
         pipeline_result = run_wp_pipeline(ticker, timestamp, APP_ROOT)
 
         if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4:
             text_report_html = pipeline_result[2]
-            chart_image_paths = pipeline_result[3] # Dict of {'type': '/path/to/img.png'}
+            # --- This variable now holds the dictionary of RELATIVE URLs ---
+            # --- e.g., {'forecast': '/static/ticker_forecast_ts.png', ...} ---
+            chart_image_urls = pipeline_result[3]
 
-            if text_report_html is not None:
+            # Check if HTML was generated successfully
+            if text_report_html is not None and "Error Generating Report" not in text_report_html:
                 end_time = time.time(); duration = end_time - start_time
                 print(f"WP pipeline completed successfully for {ticker} in {duration:.2f} seconds.")
 
-                # --- Generate URLs for the saved images ---
-                chart_image_urls = {}
-                if isinstance(chart_image_paths, dict):
-                    for chart_type, img_path in chart_image_paths.items():
-                        if img_path and os.path.exists(img_path):
-                            img_filename = os.path.basename(img_path)
-                            # Generate URL relative to the static folder
-                            chart_image_urls[chart_type] = url_for('serve_static', filename=img_filename, _external=False)
-                        else:
-                            print(f"Warning: WP Image path not found/invalid for '{chart_type}': {img_path}")
+                # --- FIX: Directly use the returned dictionary ---
+                # No need to re-validate paths or re-build URLs here.
+                # The pipeline already confirmed save success and returned relative URLs.
+                print(f"Received WP Chart Image URLs from pipeline: {chart_image_urls}") # Log the received dict
 
-                print(f"Generated WP Chart Image URLs: {chart_image_urls}")
-
-                # --- Return the TEXT HTML content and IMAGE URLs ---
+                # --- Return the TEXT HTML content and the received IMAGE URLs dictionary ---
                 return jsonify({
                     'status': 'success',
                     'ticker': ticker,
-                    'report_html': text_report_html,   # The actual text HTML string
-                    'chart_urls': chart_image_urls,    # Dict of image URLs
+                    'report_html': text_report_html,      # The actual text HTML string
+                    'chart_urls': chart_image_urls,       # The dict of image URLs from pipeline
                     'duration': f"{duration:.2f}"
                 })
             else:
-                # Handle case where WP HTML wasn't generated
-                error_message = f"WP Asset generation failed for {ticker}. Pipeline did not produce HTML."
+                # Handle case where WP HTML wasn't generated or contained error
+                error_message = f"WP Asset generation failed for {ticker}. Pipeline did not produce valid HTML."
                 print(f"WP Pipeline Error: {error_message}")
                 return jsonify({'status': 'error', 'message': error_message}), 500
         else:
-             # Handle case where WP pipeline failed earlier
-             error_message = f"WP Asset generation failed for {ticker}. Check logs."
+             # Handle case where WP pipeline failed earlier or returned invalid result
+             error_message = f"WP Asset generation failed for {ticker}. Check pipeline logs for errors."
              print(f"WP Pipeline Error: {error_message}")
              return jsonify({'status': 'error', 'message': error_message}), 500
 
@@ -212,4 +215,5 @@ if __name__ == "__main__":
     print(f"Starting Flask server on http://0.0.0.0:5000")
     # Use threaded=True if your pipeline tasks are CPU-bound and can benefit from concurrency
     # Use debug=True only for development, set to False for production
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+    # Set use_reloader=False if reloading causes issues with background tasks/threads
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, use_reloader=False)

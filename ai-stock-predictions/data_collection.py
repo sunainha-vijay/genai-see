@@ -7,7 +7,9 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def fetch_stock_data(ticker, start_date=None, end_date=None):
+def fetch_stock_data(ticker,  
+                     start_date=None, 
+                     end_date=None):
     
     # Validate the date range
     if start_date and end_date:

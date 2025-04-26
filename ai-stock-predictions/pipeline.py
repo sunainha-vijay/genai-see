@@ -1,4 +1,4 @@
-# pipeline.py
+# pipeline.py 
 import os
 import time
 import traceback
@@ -30,10 +30,11 @@ def run_pipeline(ticker, ts, app_root):
 
     try:
         print(f"\n----- Starting ORIGINAL pipeline for {ticker} -----")
-        # --- Validation for ticker format (Original had a stricter validation, keeping it for now) ---
-        # Note: Original validation might be too strict, consider using the looser one from app.py if needed
-        if not ticker or not isinstance(ticker, str) or not ticker.isalpha() or not (1 <= len(ticker) <= 5):
-             raise ValueError(f"[Original Pipeline] Invalid ticker format: {ticker}. Must be 1-5 letters.")
+        # --- Validation for ticker format ---
+        # Using a more flexible pattern suitable for general tickers
+        valid_ticker_pattern = r'^[A-Z0-9\^.-]+$'
+        if not ticker or not re.match(valid_ticker_pattern, ticker):
+             raise ValueError(f"[Original Pipeline] Invalid ticker format: {ticker}.")
 
         # --- 1. Data Collection ---
         print("Step 1: Fetching stock data...")
@@ -64,6 +65,7 @@ def run_pipeline(ticker, ts, app_root):
 
         # --- 3. Prophet Model Training & Aggregation ---
         print("Step 3: Training Prophet model & predicting...")
+        # Assuming train_prophet_model returns: model, forecast, actual_df, forecast_df
         model, forecast, actual_df, forecast_df = train_prophet_model(
             processed_data, ticker, forecast_horizon='1y', timestamp=ts
         )
@@ -88,18 +90,20 @@ def run_pipeline(ticker, ts, app_root):
 
         # --- 5. Generate FULL HTML Report ---
         print("Step 5: Generating FULL HTML report...")
-        # --- Call the ORIGINAL report generator ---
+        # --- Call the report generator ---
         report_path, report_html = create_full_report(
             ticker=ticker, actual_data=actual_df, forecast_data=forecast_df,
             historical_data=processed_data, fundamentals=fundamentals, ts=ts,
-            aggregation='Monthly', app_root=app_root
+            # aggregation='Monthly', # Aggregation is handled inside report generator now
+            app_root=app_root
         )
-        if report_html is None:
-            raise RuntimeError(f"Original report generator failed for {ticker}")
+        if report_html is None or "Error Generating Report" in report_html: # Check for error HTML
+            raise RuntimeError(f"Original report generator failed or returned error HTML for {ticker}")
         if report_path:
             print(f"   Report saved -> {os.path.basename(report_path)}")
         else:
-            print(f"   Report HTML generated, but failed to save file.")
+            # If path is None but HTML exists, it means saving failed but generation worked
+             print(f"   Report HTML generated, but failed to save file.")
 
         print(f"----- ORIGINAL Pipeline successful for {ticker} -----")
         return model, forecast, report_path, report_html
@@ -108,45 +112,47 @@ def run_pipeline(ticker, ts, app_root):
         print(f"----- ORIGINAL Pipeline Error for {ticker} -----")
         print(f"Error: {err}")
         traceback.print_exc()
+        # Return None for path and HTML on specific errors
         return None, None, None, None
     except Exception as e:
         print(f"----- ORIGINAL Pipeline failure for {ticker} -----")
         print(f"Unexpected Error: {e}")
         traceback.print_exc()
-        # Cleanup logic (same as original)
+        # Cleanup logic
         for path in {stock_csv, macro_csv, processed_csv, report_path}:
             if path and os.path.exists(path):
                 try: os.remove(path)
                 except OSError as rm_err: print(f"Error removing file {path}: {rm_err}")
+        # Return None for path and HTML on general failure
         return None, None, None, None
 
-# --- NEW Pipeline Function for WordPress Assets ---
+# --- WordPress Pipeline Function (FIXED) ---
 def run_wp_pipeline(ticker, ts, app_root):
     """
     Runs the analysis pipeline specifically to generate WordPress assets:
-    text-only HTML and static chart image paths.
+    text-only HTML and static chart image relative URLs.
     """
     static_dir_path = os.path.join(app_root, 'static')
     os.makedirs(static_dir_path, exist_ok=True)
 
     stock_csv = macro_csv = processed_csv = None
     text_report_html = None
-    chart_image_paths = {}
+    # --- Use a clear variable name for the final URL dictionary ---
+    image_urls = {}
     model = forecast = None
 
     try:
         print(f"\n>>>>> Starting WORDPRESS pipeline for {ticker} <<<<<")
-        # --- Use the more flexible validation from app.py ---
+        # --- Use the more flexible validation ---
         valid_ticker_pattern = r'^[A-Z0-9\^.-]+$'
         if not ticker or not re.match(valid_ticker_pattern, ticker):
              raise ValueError(f"[WP Pipeline] Invalid ticker format: {ticker}.")
 
         # --- Steps 1-4: Data Fetching, Preprocessing, Model Training, Fundamentals ---
-        # These steps are identical to the original pipeline
         print("WP Step 1: Fetching stock data...")
         stock_data = fetch_stock_data(ticker)
         if stock_data is None or stock_data.empty: raise RuntimeError(f"No stock data found for {ticker}.")
-        stock_csv = os.path.join(static_dir_path, f"{ticker}_wp_raw_data_{ts}.csv") # Use diff name? Optional
+        stock_csv = os.path.join(static_dir_path, f"{ticker}_wp_raw_data_{ts}.csv")
         stock_data.to_csv(stock_csv, index=False)
         print(f"   Saved WP raw data -> {os.path.basename(stock_csv)}")
 
@@ -154,18 +160,19 @@ def run_wp_pipeline(ticker, ts, app_root):
         macro_data = fetch_macro_indicators()
         if macro_data is None or macro_data.empty: print("Warning: Failed to fetch macro data.")
         else:
-            macro_csv = os.path.join(static_dir_path, f"wp_macro_indicators_{ts}.csv") # Optional diff name
+            macro_csv = os.path.join(static_dir_path, f"wp_macro_indicators_{ts}.csv")
             macro_data.to_csv(macro_csv, index=False)
             print(f"   Saved WP macro data -> {os.path.basename(macro_csv)}")
 
         print("WP Step 2: Preprocessing data...")
         processed_data = preprocess_data(stock_data, macro_data if macro_data is not None else None)
         if processed_data is None or processed_data.empty: raise RuntimeError("Preprocessing empty.")
-        processed_csv = os.path.join(static_dir_path, f"{ticker}_wp_processed_{ts}.csv") # Optional diff name
+        processed_csv = os.path.join(static_dir_path, f"{ticker}_wp_processed_{ts}.csv")
         processed_data.to_csv(processed_csv, index=False)
         print(f"   Saved WP processed data -> {os.path.basename(processed_csv)}")
 
         print("WP Step 3: Training Prophet model & predicting...")
+        # Assuming train_prophet_model returns: model, forecast, actual_df, forecast_df
         model, forecast, actual_df, forecast_df = train_prophet_model(
             processed_data, ticker, forecast_horizon='1y', timestamp=ts
         )
@@ -188,71 +195,100 @@ def run_wp_pipeline(ticker, ts, app_root):
 
         # --- Step 5: Generate WORDPRESS Assets ---
         print("WP Step 5: Generating WordPress assets (Text HTML + Images)...")
-        # --- Call the NEW report generator function ---
-        text_report_html, chart_image_paths = create_wordpress_report_assets(
+        # --- Assign return values correctly ---
+        # The second value returned by create_wordpress_report_assets is the dict of RELATIVE URLs
+        text_report_html, image_urls = create_wordpress_report_assets( # Assign to image_urls
             ticker=ticker, actual_data=actual_df, forecast_data=forecast_df,
             historical_data=processed_data, fundamentals=fundamentals, ts=ts,
-            aggregation='Monthly', app_root=app_root
+            # aggregation='Monthly', # Aggregation handled inside report generator
+            app_root=app_root
         )
-        if text_report_html is None:
-            raise RuntimeError(f"WordPress asset generator failed for {ticker}")
+        # Check if HTML generation failed
+        if text_report_html is None or "Error Generating Report" in text_report_html:
+            # Log the error HTML content if possible
+            print(f"Error HTML from report generator: {text_report_html}")
+            raise RuntimeError(f"WordPress asset generator failed or returned error HTML for {ticker}")
 
         print(f"   Text HTML generated.")
-        print(f"   Chart images saved: {len(chart_image_paths)} paths returned.")
+        # --- Log using the correct variable containing the URLs ---
+        print(f"   Chart image URLs generated: {len(image_urls)} URLs returned.") # Log length of image_urls
 
         print(f">>>>> WORDPRESS Pipeline successful for {ticker} <<<<<")
-        # Return the generated text HTML and the dictionary of image paths
-        return model, forecast, text_report_html, chart_image_paths
+        # --- Return the CORRECT dictionary containing RELATIVE URLs ---
+        return model, forecast, text_report_html, image_urls # Return the image_urls dict
 
     except (ValueError, RuntimeError) as err:
         print(f">>>>> WORDPRESS Pipeline Error for {ticker} <<<<<")
         print(f"Error: {err}")
         traceback.print_exc()
-        # Return expected tuple format on failure
-        return None, None, None, None
+        # Return None for HTML and empty dict for URLs on specific errors
+        return None, None, None, {}
     except Exception as e:
         print(f">>>>> WORDPRESS Pipeline failure for {ticker} <<<<<")
         print(f"Unexpected Error: {e}")
         traceback.print_exc()
-        # Cleanup logic (you might want separate WP temp files if names differ)
-        for path in {stock_csv, macro_csv, processed_csv}: # Don't clean image files on general failure
+        # Cleanup logic
+        for path in {stock_csv, macro_csv, processed_csv}:
             if path and os.path.exists(path):
                 try: os.remove(path)
                 except OSError as rm_err: print(f"Error removing file {path}: {rm_err}")
-        return None, None, None, None
+        # Return None for HTML and empty dict for URLs on general failure
+        return None, None, None, {}
 
 
 if __name__ == "__main__":
     print("Starting batch pipeline execution (Original Reports)...")
+    # --- Determine APP_ROOT correctly for standalone execution ---
     APP_ROOT_STANDALONE = os.path.dirname(os.path.abspath(__file__))
     print(f"Running standalone from: {APP_ROOT_STANDALONE}")
 
-    successful, failed = [], []
+    successful_orig, failed_orig = [], []
+    successful_wp, failed_wp = [], []
+
+    # --- Run Original Pipeline Batch ---
+    print("\n--- Running Original Pipeline Batch ---")
     for ticker in TICKERS:
         ts = str(int(time.time()))
-        # --- Run the original pipeline ---
         model, forecast, report_path, report_html = run_pipeline(ticker, ts, APP_ROOT_STANDALONE)
-        if report_html:
-            successful.append(ticker)
-            print(f"[✔ Orig] {ticker} - Report HTML generated.")
+        if report_path and report_html and "Error Generating Report" not in report_html:
+            successful_orig.append(ticker)
+            print(f"[✔ Orig] {ticker} - Report HTML generated and saved.")
+        elif report_html and "Error Generating Report" not in report_html:
+            successful_orig.append(f"{ticker} (HTML Only)")
+            print(f"[✔ Orig] {ticker} - Report HTML generated (Save Failed).")
         else:
-            failed.append(ticker)
-            print(f"[✖ Orig] {ticker}")
+            failed_orig.append(ticker)
+            print(f"[✖ Orig] {ticker} - Failed.")
+        time.sleep(1) # Add a small delay between tickers if needed
 
     print("\nBatch Summary (Original Reports):")
-    print(f"  Successful: {', '.join(successful) or 'None'}")
-    print(f"  Failed:     {', '.join(failed) or 'None'}")
+    print(f"  Successful: {', '.join(successful_orig) or 'None'}")
+    print(f"  Failed:     {', '.join(failed_orig) or 'None'}")
 
-    # --- Example: Running the WP pipeline for one ticker ---
-    if TICKERS:
-        print("\n--- Example: Running WP Asset Pipeline ---")
-        ticker_wp = TICKERS[0]
+    # --- Run WordPress Pipeline Batch ---
+    print("\n--- Running WP Asset Pipeline Batch ---")
+    for ticker in TICKERS:
         ts_wp = str(int(time.time()))
-        _, _, text_html, img_paths = run_wp_pipeline(ticker_wp, ts_wp, APP_ROOT_STANDALONE)
-        if text_html:
-            print(f"[✔ WP] {ticker_wp} - Text HTML generated.")
-            print(f"[✔ WP] {ticker_wp} - Image paths generated: {img_paths}")
+        # --- Capture all return values ---
+        model_wp, forecast_wp, text_html_wp, img_urls_wp = run_wp_pipeline(ticker, ts_wp, APP_ROOT_STANDALONE)
+        # --- Check if BOTH HTML and URLs were generated ---
+        if text_html_wp and "Error Generating Report" not in text_html_wp and isinstance(img_urls_wp, dict): # img_urls_wp should be dict
+            successful_wp.append(ticker)
+            print(f"[✔ WP] {ticker} - Text HTML generated.")
+            # Check if URLs were actually generated (dict not empty)
+            if img_urls_wp:
+                 print(f"[✔ WP] {ticker} - Image URLs generated: {len(img_urls_wp)} URLs -> {list(img_urls_wp.values())}")
+            else:
+                 print(f"[✔ WP] {ticker} - Image URLs dictionary is empty (Check logs for save errors).")
+
         else:
-            print(f"[✖ WP] {ticker_wp} - Failed.")
+            failed_wp.append(ticker)
+            print(f"[✖ WP] {ticker} - Failed.")
+        time.sleep(1) # Add a small delay
+
+    print("\nBatch Summary (WordPress Assets):")
+    print(f"  Successful: {', '.join(successful_wp) or 'None'}")
+    print(f"  Failed:     {', '.join(failed_wp) or 'None'}")
+
 
     print("\nBatch pipeline execution completed.")

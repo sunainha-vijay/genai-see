@@ -1,9 +1,15 @@
-# technical_analysis.py (Updated to limit plot range & use revised layout)
+# technical_analysis.py 
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 from datetime import timedelta # Import timedelta
+
+# --- NEW: Import Matplotlib ---
+import matplotlib
+matplotlib.use('Agg') # Use Agg backend for non-interactive plotting
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates # For date formatting
 
 # --- Calculation Functions (Keep as before) ---
 def calculate_rsi(data: pd.Series, window: int = 14) -> pd.Series:
@@ -72,25 +78,32 @@ def get_bb_conclusion(close_price, upper_band, lower_band, middle_band):
     elif close_price < lower_band: return f"The price (${close_price:.2f}) is currently below the lower Bollinger Band (${lower_band:.2f}), which can sometimes indicate an oversold condition or a strong breakdown. Prices may revert towards the middle band (${middle_band:.2f})."
     else: return f"The price (${close_price:.2f}) is currently trading within the Bollinger Bands (Lower: ${lower_band:.2f}, Upper: ${upper_band:.2f}), around the middle band (SMA20: ${middle_band:.2f})."
 
-# --- Helper function to get plot data range ---
+# --- Helper function to get plot data range (Keep as before) ---
 def _get_plot_data(df, plot_period_years=3):
     """Slices the DataFrame to the specified number of recent years."""
     if df.empty or 'Date' not in df.columns:
         return df
-    
-    df['Date'] = pd.to_datetime(df['Date'])
-    df = df.sort_values('Date')
+
+    # Ensure 'Date' is datetime and sorted
+    try:
+        if not pd.api.types.is_datetime64_any_dtype(df['Date']):
+            df['Date'] = pd.to_datetime(df['Date'])
+        df = df.sort_values('Date')
+    except Exception as e:
+        print(f"Error processing Date column: {e}")
+        return pd.DataFrame() # Return empty if Date is unusable
+
     last_date = df['Date'].iloc[-1]
     start_date = last_date - pd.DateOffset(years=plot_period_years)
-    
+
     # Ensure start_date doesn't go before the first date in the data
     first_date = df['Date'].iloc[0]
     start_date = max(start_date, first_date)
-    
+
     return df[df['Date'] >= start_date].copy()
 
 
-# --- Helper for common layout elements (REVISED LAYOUT STRUCTURE - Keep as before) ---
+# --- Plotly Helper for common layout elements (Keep as before - Used by Plotly functions) ---
 def _configure_indicator_layout(fig, title):
     fig.update_layout(
         title=dict(
@@ -117,7 +130,6 @@ def _configure_indicator_layout(fig, title):
                 dict(count=1, label="YTD", step="year", stepmode="todate"),
                 dict(count=1, label="1Y", step="year", stepmode="backward"),
                 dict(count=3, label="3Y", step="year", stepmode="backward"),
-                 # Removed 5Y button as default plot range is 3Y now
                 dict(step="all", label="All") # Add 'All' button back
             ]),
             yanchor='top',
@@ -154,9 +166,8 @@ def _configure_indicator_layout(fig, title):
     return fig
 
 
-# --- Plotting Functions using the REVISED layout AND limited data range ---
+# --- Plotly Plotting Functions (Keep as before - Used by Full Report) ---
 
-# <<< MODIFIED plot_period_years parameter added >>>
 def plot_price_bollinger(df, ticker, plot_period_years=3):
     """Plots Price and Bollinger Bands for the specified period."""
     if len(df) < 20: return None, "Insufficient data for Bollinger Bands."
@@ -189,7 +200,6 @@ def plot_price_bollinger(df, ticker, plot_period_years=3):
 
     return fig, conclusion
 
-# <<< MODIFIED plot_period_years parameter added >>>
 def plot_rsi(df, ticker, plot_period_years=3):
     """Plots RSI for the specified period."""
     if len(df) < 15: return None, "Insufficient data for RSI (14)."
@@ -216,7 +226,6 @@ def plot_rsi(df, ticker, plot_period_years=3):
 
     return fig, conclusion
 
-# <<< MODIFIED plot_period_years parameter added >>>
 def plot_macd_lines(df, ticker, plot_period_years=3):
     """Plots MACD Line vs Signal Line for the specified period."""
     if len(df) < 35: return None, "Insufficient data for MACD (12, 26, 9)."
@@ -246,7 +255,6 @@ def plot_macd_lines(df, ticker, plot_period_years=3):
 
     return fig, conclusion
 
-# <<< MODIFIED plot_period_years parameter added >>>
 def plot_macd_histogram(df, ticker, plot_period_years=3):
     """Plots MACD Histogram for the specified period."""
     if len(df) < 35: return None, "Insufficient data for MACD (12, 26, 9)."
@@ -262,7 +270,7 @@ def plot_macd_histogram(df, ticker, plot_period_years=3):
 
     fig = go.Figure()
     # Plot using df_plot
-    colors = np.where(df_plot['MACD_Hist'] < 0, '#DC143C', '#228B22')
+    colors = np.where(df_plot['MACD_Hist'] < 0, '#DC143C', '#228B22') # Red / Green
     fig.add_trace(go.Bar(x=df_plot['Date'], y=df_plot['MACD_Hist'], name='MACD Hist', marker_color=colors))
 
     fig = _configure_indicator_layout(fig, f'MACD Histogram ({plot_period_years}Y)')
@@ -277,8 +285,6 @@ def plot_macd_histogram(df, ticker, plot_period_years=3):
 
     return fig, conclusion
 
-
-# --- Historical Chart (REVISED LAYOUT STRUCTURE - Keep as before, range selector handles display) ---
 def plot_historical_line_chart(df, ticker):
     """Plots Historical Price and Volume."""
     df['Date'] = pd.to_datetime(df['Date'])
@@ -301,7 +307,6 @@ def plot_historical_line_chart(df, ticker):
     # No specific period in title as range selector handles it
 
     return fig
-
 
 # --- Function to calculate additional indicators for summary (Keep as before) ---
 def calculate_detailed_ta(df):
@@ -402,3 +407,293 @@ def calculate_detailed_ta(df):
     ta_summary['Current_Price'] = df['Close'].iloc[-1] if not df.empty else None
 
     return ta_summary
+
+# ==============================================================================
+# --- NEW Matplotlib Plotting Functions (For WordPress Static Images) ---
+# ==============================================================================
+
+def plot_historical_mpl(df, ticker, plot_period_years=3):
+    """Plots Historical Price and Volume using Matplotlib."""
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values('Date')
+
+    # Get data for the plotting period
+    df_plot = _get_plot_data(df.copy(), plot_period_years) # Operate on a copy
+
+    if df_plot.empty:
+        print(f"Warning: No data available for {ticker} in the last {plot_period_years} years.")
+        return None # Return None if no data
+
+    fig, ax1 = plt.subplots(figsize=(12, 6)) # Create figure and primary axes
+
+    # Plot Close Price on primary axis
+    color_price = 'navy' # Dark blue
+    ax1.set_xlabel('Date')
+    ax1.set_ylabel('Price ($)', color=color_price)
+    ax1.plot(df_plot['Date'], df_plot['Close'], color=color_price, linewidth=1.5, label='Close Price')
+    ax1.tick_params(axis='y', labelcolor=color_price)
+    ax1.grid(True, axis='y', linestyle='--', alpha=0.6)
+
+    # Create secondary axis for Volume
+    ax2 = ax1.twinx()
+    color_volume = 'darkorange'
+    ax2.set_ylabel('Volume', color=color_volume)
+
+    # Calculate Volume SMA on the plotted data range
+    if 'Volume' in df_plot.columns and not df_plot['Volume'].isnull().all():
+        df_plot['Volume_SMA20'] = calculate_volume_sma(df_plot, 20) # Calculate on plot data
+        ax2.bar(df_plot['Date'], df_plot['Volume'], color=color_volume, alpha=0.3, width=1.0, label='Volume') # Adjust width as needed
+        # Plot Volume SMA only if calculated
+        if not df_plot['Volume_SMA20'].isnull().all():
+             ax2.plot(df_plot['Date'], df_plot['Volume_SMA20'], color='saddlebrown', linewidth=1, linestyle='dotted', label='Volume SMA20')
+    ax2.tick_params(axis='y', labelcolor=color_volume)
+    ax2.set_ylim(bottom=0) # Volume starts at 0
+
+    # Formatting
+    fig.suptitle(f'{ticker} Historical Price & Volume ({plot_period_years}Y)', fontsize=14)
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y')) # Format date axis
+    fig.autofmt_xdate() # Auto-rotate date labels
+
+    # Combine legends
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax2.legend(lines + lines2, labels + labels2, loc='upper left', fontsize='small')
+
+    fig.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust layout to prevent title overlap
+
+    return fig # Return the Matplotlib figure object
+
+def plot_bollinger_mpl(df, ticker, plot_period_years=3):
+    """Plots Price and Bollinger Bands using Matplotlib."""
+    if len(df) < 20: return None
+    # Calculate on full df first
+    df['BB_Upper'], df['BB_Middle'], df['BB_Lower'] = calculate_bollinger_bands(df['Close'])
+    # Get data for the plotting period
+    df_plot = _get_plot_data(df.copy(), plot_period_years)
+    df_plot = df_plot.dropna(subset=['BB_Upper', 'BB_Middle', 'BB_Lower', 'Close'])
+
+    if df_plot.empty: return None
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Plot Bands and Fill
+    ax.plot(df_plot['Date'], df_plot['BB_Upper'], color='darkgrey', linewidth=1, label='Upper Band')
+    ax.plot(df_plot['Date'], df_plot['BB_Lower'], color='darkgrey', linewidth=1, label='Lower Band')
+    ax.fill_between(df_plot['Date'], df_plot['BB_Lower'], df_plot['BB_Upper'], color='lightgrey', alpha=0.3)
+
+    # Plot Middle Band (SMA20) and Close Price
+    ax.plot(df_plot['Date'], df_plot['BB_Middle'], color='darkorange', linewidth=1, linestyle='--', label='SMA20')
+    ax.plot(df_plot['Date'], df_plot['Close'], color='navy', linewidth=1.5, label='Close Price')
+
+    # Formatting
+    ax.set_title(f'{ticker} Price & Bollinger Bands ({plot_period_years}Y)', fontsize=14)
+    ax.set_ylabel('Price ($)')
+    ax.legend(loc='upper left', fontsize='small')
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+    fig.autofmt_xdate()
+    fig.tight_layout()
+
+    return fig
+
+def plot_rsi_mpl(df, ticker, plot_period_years=3):
+    """Plots RSI using Matplotlib."""
+    if len(df) < 15: return None
+    # Calculate on full df
+    df['RSI'] = calculate_rsi(df['Close'])
+    # Get data for the plotting period
+    df_plot = _get_plot_data(df.copy(), plot_period_years)
+    df_plot = df_plot.dropna(subset=['RSI'])
+
+    if df_plot.empty: return None
+
+    fig, ax = plt.subplots(figsize=(12, 4)) # Smaller height for indicator
+
+    # Plot RSI line
+    ax.plot(df_plot['Date'], df_plot['RSI'], color='purple', linewidth=1.5, label='RSI (14)')
+
+    # Plot Overbought/Oversold lines
+    ax.axhline(70, color='red', linestyle='--', linewidth=1, alpha=0.8, label='Overbought (70)')
+    ax.axhline(30, color='green', linestyle='--', linewidth=1, alpha=0.8, label='Oversold (30)')
+
+    # Formatting
+    ax.set_title(f'{ticker} Relative Strength Index (RSI 14) ({plot_period_years}Y)', fontsize=14)
+    ax.set_ylabel('RSI')
+    ax.set_ylim(0, 100) # RSI range is 0-100
+    ax.legend(loc='upper left', fontsize='small')
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+    fig.autofmt_xdate()
+    fig.tight_layout()
+
+    return fig
+
+def plot_macd_lines_mpl(df, ticker, plot_period_years=3):
+    """Plots MACD Line vs Signal Line using Matplotlib."""
+    if len(df) < 35: return None
+    # Calculate on full df
+    df['MACD_Line'], df['MACD_Signal'], _ = calculate_macd(df['Close'])
+    # Get data for plotting period
+    df_plot = _get_plot_data(df.copy(), plot_period_years)
+    df_plot = df_plot.dropna(subset=['MACD_Line', 'MACD_Signal'])
+
+    if len(df_plot) < 2: return None
+
+    fig, ax = plt.subplots(figsize=(12, 4)) # Smaller height
+
+    # Plot MACD and Signal lines
+    ax.plot(df_plot['Date'], df_plot['MACD_Line'], color='navy', linewidth=1.5, label='MACD Line')
+    ax.plot(df_plot['Date'], df_plot['MACD_Signal'], color='orangered', linewidth=1.5, label='Signal Line')
+
+    # Plot Zero line
+    ax.axhline(0, color='grey', linestyle='--', linewidth=1, alpha=0.5)
+
+    # Formatting
+    ax.set_title(f'{ticker} MACD Line vs Signal Line ({plot_period_years}Y)', fontsize=14)
+    ax.set_ylabel('MACD Value')
+    ax.legend(loc='upper left', fontsize='small')
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+    fig.autofmt_xdate()
+    fig.tight_layout()
+
+    return fig
+
+def plot_macd_hist_mpl(df, ticker, plot_period_years=3):
+    """Plots MACD Histogram using Matplotlib."""
+    if len(df) < 35: return None
+    # Ensure MACD is calculated on full df
+    if 'MACD_Hist' not in df.columns:
+        _, _, df['MACD_Hist'] = calculate_macd(df['Close'])
+
+    # Get data for plotting period
+    df_plot = _get_plot_data(df.copy(), plot_period_years)
+    df_plot = df_plot.dropna(subset=['MACD_Hist'])
+
+    if len(df_plot) < 2: return None
+
+    fig, ax = plt.subplots(figsize=(12, 4)) # Smaller height
+
+    # Plot MACD Histogram bars
+    colors = ['green' if val >= 0 else 'red' for val in df_plot['MACD_Hist']]
+    # Use date index directly for bars if 'Date' is datetime
+    if pd.api.types.is_datetime64_any_dtype(df_plot['Date']):
+        # Estimate bar width based on date frequency (might need adjustment)
+        date_diffs = df_plot['Date'].diff().median()
+        bar_width = date_diffs.days * 0.8 if date_diffs else 0.8 # Adjust factor as needed
+        ax.bar(df_plot['Date'], df_plot['MACD_Hist'], color=colors, width=bar_width, label='MACD Histogram')
+    else: # Fallback if 'Date' is not datetime
+        ax.bar(range(len(df_plot)), df_plot['MACD_Hist'], color=colors, label='MACD Histogram')
+
+    # Plot Zero line
+    ax.axhline(0, color='grey', linestyle='--', linewidth=1, alpha=0.5)
+
+    # Formatting
+    ax.set_title(f'{ticker} MACD Histogram ({plot_period_years}Y)', fontsize=14)
+    ax.set_ylabel('Histogram Value')
+    ax.legend(loc='upper left', fontsize='small')
+    ax.grid(True, axis='y', linestyle='--', alpha=0.6) # Grid only on y-axis for bars
+
+    # Format X axis only if 'Date' is datetime
+    if pd.api.types.is_datetime64_any_dtype(df_plot['Date']):
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+        fig.autofmt_xdate()
+    else:
+        ax.set_xlabel('Index') # Label index if not dates
+
+    fig.tight_layout()
+
+    return fig
+
+# --- NEW: Matplotlib Forecast Plot ---
+def plot_forecast_mpl(rdata, ticker):
+    """
+    Plots Actual vs Forecast data using Matplotlib.
+    Accepts the prepared report data dictionary (rdata).
+    """
+    print(f"  Generating Matplotlib forecast chart for {ticker}...")
+
+    actual_data = rdata.get('actual_data')
+    forecast_data = rdata.get('monthly_forecast_table_data') # Use the table data for consistency
+    period_label = rdata.get('period_label', 'Period')
+    time_col = rdata.get('time_col', 'Period')
+    overall_pct_change = rdata.get('overall_pct_change', 0.0)
+    forecast_1y = rdata.get('forecast_1y')
+
+
+    # Validate data
+    if forecast_data is None or forecast_data.empty or time_col not in forecast_data.columns:
+        print(f"    Warning: Forecast data for {ticker} is missing or invalid for plotting.")
+        return None
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    try:
+        # Prepare x-axis labels (treat 'Period' as categorical for now)
+        x_labels_actual = []
+        y_values_actual = []
+        if actual_data is not None and not actual_data.empty and 'Average' in actual_data.columns and time_col in actual_data.columns:
+            plot_actual = actual_data.tail(6) # Show last 6 actual periods
+            x_labels_actual = plot_actual[time_col].tolist()
+            y_values_actual = plot_actual['Average'].tolist()
+            ax.plot(x_labels_actual, y_values_actual, marker='o', linestyle='-', color='blue', linewidth=1.5, label='Actual Avg')
+
+        x_labels_forecast = forecast_data[time_col].tolist()
+        y_values_forecast_avg = forecast_data['Average'].tolist()
+
+        # Combine labels for the axis, ensuring order and uniqueness
+        all_x_labels = sorted(list(set(x_labels_actual + x_labels_forecast)))
+        ax.set_xticks(range(len(all_x_labels))) # Set ticks based on combined length
+        ax.set_xticklabels(all_x_labels, rotation=45, ha='right') # Rotate labels
+
+        # Plot forecast average
+        ax.plot(x_labels_forecast, y_values_forecast_avg, marker='.', linestyle='--', color='green', linewidth=1.5, label='Forecast Avg')
+
+        # Plot forecast range (Low/High) if available
+        if 'Low' in forecast_data.columns and 'High' in forecast_data.columns:
+            y_values_forecast_low = forecast_data['Low'].tolist()
+            y_values_forecast_high = forecast_data['High'].tolist()
+            ax.fill_between(x_labels_forecast, y_values_forecast_low, y_values_forecast_high,
+                            color='palegreen', alpha=0.4, label='Forecast Range (Low-High)')
+
+        # Add annotation for the 1-year forecast point
+        if forecast_1y is not None and x_labels_forecast:
+            last_period_label = x_labels_forecast[-1]
+            annotation_text = f"{forecast_1y:.2f}\n({overall_pct_change:+.1f}% 1Y)"
+            # Find index of last period label in the combined axis
+            try:
+                 last_period_index = all_x_labels.index(last_period_label)
+                 ax.annotate(annotation_text,
+                           xy=(last_period_index, forecast_1y), # Use index for position
+                           xytext=(15, -15), # Offset text
+                           textcoords='offset points',
+                           ha='center', va='top',
+                           fontsize=9, color='darkgreen',
+                           bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.7),
+                           arrowprops=dict(arrowstyle='->', color='darkgreen'))
+            except ValueError:
+                 print(f"Warning: Could not find last forecast period '{last_period_label}' in combined axis for annotation.")
+
+        # Formatting
+        num_forecast_periods = len(forecast_data)
+        ax.set_title(f'{ticker} Price Forecast ({num_forecast_periods} {period_label}s)', fontsize=14)
+        ax.set_ylabel('Price ($)')
+        ax.set_xlabel(period_label)
+        ax.legend(loc='upper left', fontsize='small')
+        ax.grid(True, linestyle='--', alpha=0.6)
+
+        # Adjust x-axis tick frequency if too many labels
+        if len(all_x_labels) > 20:
+            step = max(1, len(all_x_labels) // 15) # Show ~15 labels max
+            ax.set_xticks(np.arange(0, len(all_x_labels), step))
+
+        fig.tight_layout()
+        print(f"  Successfully generated Matplotlib forecast figure for {ticker}")
+        return fig
+
+    except Exception as e:
+        print(f"  ERROR generating Matplotlib forecast chart for {ticker}: {e}")
+        import traceback
+        traceback.print_exc() # Print detailed error
+        plt.close(fig) # Ensure figure is closed
+        return None # Return None on error

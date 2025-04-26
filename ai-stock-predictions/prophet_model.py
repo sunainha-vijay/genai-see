@@ -67,9 +67,9 @@ def train_prophet_model(data, ticker='STOCK', forecast_horizon='1y', timestamp=N
         }
     }
     params = ticker_params.get(ticker, {
-        'cap_multiplier': 2.0,
-        'changepoint_prior_scale': 0.05,
-        'seasonality_mode': 'additive'
+        'cap_multiplier': 3.0,
+        'changepoint_prior_scale': 0.09,
+        'seasonality_mode': 'multiplicative'
     })
     cap_multiplier = params['cap_multiplier']
     changepoint_prior_scale = params['changepoint_prior_scale']
@@ -98,10 +98,10 @@ def train_prophet_model(data, ticker='STOCK', forecast_horizon='1y', timestamp=N
         weekly_seasonality=True,
         changepoint_prior_scale=changepoint_prior_scale,
         seasonality_mode=seasonality_mode,
-        uncertainty_samples=10
+        uncertainty_samples=5
     )
 
-    # # ----- Add Regressors if Present -----
+    # ----- Add Regressors if Present -----
     regressor_features = ['RSI', 'MACD', 'Interest_Rate']
     for feature in regressor_features:
         if feature in df.columns:
