@@ -1,0 +1,38 @@
+# Virtual Environments
+venv/
+.venv/
+/.venv/   
+new_env/
+/venv/
+*.pyc
+__pycache__/
+.env
+*.env
+# ... rest of file
+
+# VS Code
+.vscode/
+
+# Cache files
+.cache/
+cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+template/index.html
+# Generated static files (Reports, CSVs)
+# Keep the static folder itself, but ignore HTML/CSV inside
+static/*.html
+static/*.csv
+# Optionally, ignore the entire static folder if you ONLY want code
+# static/
+
+# Configuration secrets (if any - e.g., API keys)
+# Add any files containing secrets here
+# config_secrets.py
+
+# Dependencies (if managed differently, e.g. large data files)
+# data/raw_data/
+
+# Add other specific files or folders to ignore
