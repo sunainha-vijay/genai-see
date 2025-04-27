@@ -1,4 +1,4 @@
-# report_generator.py 
+# report_generator.py (UPDATED - Taxes Section Removed)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.io import to_html, write_image
@@ -24,13 +24,13 @@ pio.kaleido.scope.default_format = "png"
 
 
 # Import functions from helper modules
-# --- UPDATED IMPORTS ---
+# --- Ensure necessary imports are present ---
 from technical_analysis import (
     # Plotly functions (for full report)
     plot_historical_line_chart, plot_price_bollinger, plot_rsi,
     plot_macd_lines, plot_macd_histogram, calculate_detailed_ta,
     # Conclusion functions (needed by WP report)
-    get_macd_conclusion, get_rsi_conclusion, get_bb_conclusion, # ADDED get_rsi_conclusion, get_bb_conclusion
+    get_macd_conclusion, get_rsi_conclusion, get_bb_conclusion, # Make sure these are imported
     # Matplotlib functions (for WP report)
     plot_historical_mpl, plot_bollinger_mpl, plot_rsi_mpl,
     plot_macd_lines_mpl, plot_macd_hist_mpl, plot_forecast_mpl
@@ -42,7 +42,8 @@ from html_components import (
     generate_total_valuation_html, generate_share_statistics_html,
     generate_valuation_metrics_html, generate_financial_health_html,
     generate_financial_efficiency_html, generate_profitability_growth_html,
-    generate_taxes_html, generate_dividends_shareholder_returns_html,
+    # generate_taxes_html, # <-- Corresponding function can be optionally removed from html_components.py
+    generate_dividends_shareholder_returns_html,
     generate_technical_analysis_summary_html, generate_stock_price_statistics_html,
     generate_short_selling_info_html, generate_risk_factors_html,
     generate_analyst_insights_html, generate_recent_news_html,
@@ -54,7 +55,8 @@ from fundamental_analysis import (
     extract_profitability, extract_dividends_splits, extract_analyst_info,
     extract_news, safe_get, extract_total_valuation_data,
     extract_share_statistics_data, extract_financial_efficiency_data,
-    extract_tax_data, extract_stock_price_stats_data,
+    # extract_tax_data, # <-- Corresponding function can be optionally removed from fundamental_analysis.py
+    extract_stock_price_stats_data,
     extract_short_selling_data
 )
 
@@ -405,7 +407,7 @@ def _write_plotly_image(fig, path, fallback_msg="Chart could not be generated.",
 
 # Helper function to prepare common data (Keep Unchanged)
 def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fundamentals, plot_period_years):
-    # ... (implementation unchanged) ...
+    # ... (implementation unchanged, but ensure extract_tax_data is not called/used if removed from fundamental_analysis.py) ...
     data_out = {}
 
     # --- Data Validation ---
@@ -525,7 +527,7 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
                  if 'High' not in monthly_forecast_table_data.columns: monthly_forecast_table_data['High'] = monthly_forecast_table_data['Average']
     data_out['monthly_forecast_table_data'] = monthly_forecast_table_data
 
-    # --- Extract Fundamental Data ---
+    # --- Extract Fundamental Data (Taxes section data extraction is removed implicitly if extract_tax_data is removed/commented out) ---
     print("Extracting fundamental data sections...")
     data_out['profile_data'] = extract_company_profile(fundamentals)
     data_out['valuation_data'] = extract_valuation_metrics(fundamentals)
@@ -537,13 +539,14 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
     data_out['total_valuation_data'] = extract_total_valuation_data(fundamentals, current_price)
     data_out['share_statistics_data'] = extract_share_statistics_data(fundamentals, current_price)
     data_out['financial_efficiency_data'] = extract_financial_efficiency_data(fundamentals)
-    data_out['tax_data'] = extract_tax_data(fundamentals)
+    # data_out['tax_data'] = extract_tax_data(fundamentals) # <-- Ensure this line is removed or commented out
     data_out['stock_price_stats_data'] = extract_stock_price_stats_data(fundamentals)
     data_out['short_selling_data'] = extract_short_selling_data(fundamentals)
 
     # --- Calculate Risk Items ---
     print("Calculating risk factors...")
-    risk_items = []
+    risk_items = [] # Initialize empty list
+    # --- (Risk calculation logic remains the same) ---
     if sentiment.lower().find('bearish') != -1: risk_items.append(f"Overall technical sentiment is {sentiment}, suggesting caution.")
     if current_price is not None:
         if sma50 is not None and current_price < sma50: risk_items.append(f"Price ({current_price:,.2f}) is below the 50-Day SMA ({sma50:,.2f}), indicating potential short-term weakness.")
@@ -581,13 +584,15 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
     if sector != 'N/A':
         risk_items.append(f"General market fluctuations and economic conditions can impact stocks in the {sector} sector.")
 
+
     data_out['risk_items'] = risk_items
     data_out['sector'] = data_out['profile_data'].get('Sector', 'N/A')
     data_out['industry'] = data_out['profile_data'].get('Industry', 'N/A')
 
     return data_out
 
-# --- Original Report Generation Function (Keep Unchanged) ---
+
+# --- Full Report Generation Function (Taxes Section Removed) ---
 def create_full_report(
     ticker,
     actual_data,
@@ -599,8 +604,7 @@ def create_full_report(
     app_root=None,
     plot_period_years=3
 ):
-    # ... (implementation unchanged, but includes the forecast chart addition from previous step) ...
-    global custom_style # Access the CSS defined at module level
+    global custom_style
     print(f"[Full Report] Starting generation for {ticker}...")
 
     static_dir = os.path.join(app_root, 'static') if app_root else 'static'
@@ -611,6 +615,7 @@ def create_full_report(
         rdata = _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fundamentals, plot_period_years)
         print("[Full Report] Generating plots...")
         def fig_to_html(fig, include_plotlyjs=True, full_html=False, div_id=None, config=None):
+            # ... (fig_to_html implementation unchanged) ...
             if fig is None: return ""
             default_config = {'displayModeBar': True, 'displaylogo': False, 'responsive': True}
             merged_config = default_config.copy()
@@ -622,6 +627,7 @@ def create_full_report(
                  return f'<p style="color:red;">Error rendering plot: {e}</p>'
 
         # --- Forecast Chart (Plotly) ---
+        # --- (Forecast chart generation logic unchanged) ---
         forecast_chart_fig = go.Figure()
         display_actual = rdata.get('actual_data')
         forecast_table = rdata.get('monthly_forecast_table_data')
@@ -650,8 +656,11 @@ def create_full_report(
                  last_time_period = forecast_table[time_col].iloc[-1]
                  ax_val = 30; ay_val = -30
                  if len(forecast_table) > 1:
-                     y_second_last = forecast_table['Average'].iloc[-2]
-                     if forecast_1y < y_second_last: ay_val = 30
+                     try: # Handle potential non-numeric comparison errors
+                         y_second_last = forecast_table['Average'].iloc[-2]
+                         if pd.to_numeric(forecast_1y, errors='coerce') < pd.to_numeric(y_second_last, errors='coerce'): ay_val = 30
+                     except (TypeError, IndexError):
+                         pass # Keep default annotation position on error
                  forecast_chart_fig.add_annotation(x=last_time_period, y=forecast_1y, text=annotation_text, showarrow=True, arrowhead=2, ax=ax_val, ay=ay_val, bgcolor='rgba(255,255,255,0.8)', font=dict(color=colors['Average'], size=10), bordercolor='black', borderwidth=1)
 
         forecast_chart_fig.update_layout(
@@ -664,29 +673,23 @@ def create_full_report(
         forecast_chart_html = fig_to_html(forecast_chart_fig, div_id='forecast-chart-div')
 
         # --- Technical Analysis Charts HTML (Plotly) ---
+        # --- (TA chart generation unchanged) ---
         hist_data_for_ta = rdata['historical_data'].copy()
         historical_line_fig = plot_historical_line_chart(hist_data_for_ta, ticker)
         historical_chart_html = fig_to_html(historical_line_fig, div_id='hist-chart-div', include_plotlyjs=False)
-
         bb_fig, bb_conclusion = plot_price_bollinger(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
         bb_chart_html = fig_to_html(bb_fig, div_id='bb-chart-div', include_plotlyjs=False)
-
         rsi_fig, rsi_conclusion = plot_rsi(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
         rsi_chart_html = fig_to_html(rsi_fig, div_id='rsi-chart-div', include_plotlyjs=False)
-
-        macd_conclusion = get_macd_conclusion(
-            rdata['detailed_ta_data'].get('MACD_Line'), rdata['detailed_ta_data'].get('MACD_Signal'),
-            rdata['detailed_ta_data'].get('MACD_Hist'), rdata['detailed_ta_data'].get('MACD_Hist_Prev')
-        ) if rdata['detailed_ta_data'].get('MACD_Hist') is not None else "MACD conclusion requires more data."
-
+        macd_conclusion = get_macd_conclusion(rdata['detailed_ta_data'].get('MACD_Line'), rdata['detailed_ta_data'].get('MACD_Signal'), rdata['detailed_ta_data'].get('MACD_Hist'), rdata['detailed_ta_data'].get('MACD_Hist_Prev')) if rdata['detailed_ta_data'].get('MACD_Hist') is not None else "MACD conclusion requires more data."
         macd_lines_fig, _ = plot_macd_lines(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
         macd_lines_chart_html = fig_to_html(macd_lines_fig, div_id='macd-lines-chart-div', include_plotlyjs=False)
-
         macd_hist_fig, _ = plot_macd_histogram(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
         macd_hist_chart_html = fig_to_html(macd_hist_fig, div_id='macd-hist-chart-div', include_plotlyjs=False)
 
         # --- Generate HTML Components ---
         print("[Full Report] Generating HTML components...")
+        # --- (Component generation calls unchanged, but taxes_html is no longer generated/needed) ---
         intro_html = generate_introduction_html(ticker, rdata)
         metrics_summary_html = generate_metrics_summary_html(ticker, rdata)
         detailed_forecast_table_html = generate_detailed_forecast_table_html(ticker, rdata)
@@ -697,7 +700,7 @@ def create_full_report(
         financial_health_html = generate_financial_health_html(ticker, rdata)
         financial_efficiency_html = generate_financial_efficiency_html(ticker, rdata)
         profitability_growth_html = generate_profitability_growth_html(ticker, rdata)
-        taxes_html = generate_taxes_html(ticker, rdata)
+        # taxes_html = generate_taxes_html(ticker, rdata) # <-- Removed
         dividends_shareholder_returns_html = generate_dividends_shareholder_returns_html(ticker, rdata)
         technical_analysis_summary_html = generate_technical_analysis_summary_html(ticker, rdata)
         stock_price_statistics_html = generate_stock_price_statistics_html(ticker, rdata)
@@ -709,7 +712,7 @@ def create_full_report(
         faq_html = generate_faq_html(ticker, rdata)
         report_info_disclaimer_html = generate_report_info_disclaimer_html(datetime.now(pytz.utc))
 
-        # --- Assemble Final HTML Structure ---
+        # --- Assemble Final HTML Structure (Taxes Section Removed) ---
         print("[Full Report] Assembling final HTML structure...")
         report_body_content = f'<h1 class="report-title">{ticker} Stock Price Prediction & Analysis ({datetime.now(pytz.utc):%Y-%m-%d})</h1>\n'
         html_sections = [
@@ -724,7 +727,7 @@ def create_full_report(
             ("Financial Health", financial_health_html, "financial-health"),
             ("Financial Efficiency", financial_efficiency_html, "financial-efficiency"),
             ("Profitability and Growth", profitability_growth_html, "profitability-growth"),
-            ("Taxes", taxes_html, "taxes"),
+            # ("Taxes", taxes_html, "taxes"), # <-- REMOVED THIS LINE
             ("Dividends and Shareholder Returns", dividends_shareholder_returns_html, "dividends-shareholder-returns"),
             ("Technical Analysis", technical_analysis_summary_html, "technical-analysis-summary"),
             ("Bollinger Bands Chart", bb_chart_html, "tech-chart-bb", None, bb_conclusion),
@@ -744,6 +747,7 @@ def create_full_report(
             ("Frequently Asked Questions", faq_html, "frequently-asked-questions"),
             ("Report Information and Disclaimer", report_info_disclaimer_html, "report-information-disclaimer")
         ]
+        # --- (Loop to build report body remains the same) ---
         for item in html_sections:
             title, html_content = item[0], item[1]
             section_class = item[2] if len(item) > 2 else title.lower().replace(" ", "-").replace("&", "and")
@@ -767,7 +771,7 @@ def create_full_report(
             else:
                  print(f"[Full Report] Skipping empty or failed section: {title}")
 
-        # Assemble Final HTML Document
+        # --- Assemble Final HTML Document (unchanged) ---
         full_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -817,7 +821,7 @@ def create_full_report(
         return None, f"<html><body><h2>Unexpected Error Generating Report for {ticker}</h2><p>{e}</p></body></html>"
 
 
-# --- MODIFIED Function for WordPress Report Assets (FIXED Errors) ---
+# --- WordPress Report Assets Generation Function (Taxes Section Removed) ---
 def create_wordpress_report_assets(
     ticker,
     actual_data,
@@ -829,11 +833,6 @@ def create_wordpress_report_assets(
     app_root=None,
     plot_period_years=3
 ):
-    """
-    Generates assets for WordPress: text-only HTML and static chart images using Matplotlib,
-    including the forecast chart, with fixes for KeyError and NameError.
-    """
-
     global custom_style
     print(f"[WP Assets] Starting generation for {ticker} using Matplotlib...")
 
@@ -850,86 +849,55 @@ def create_wordpress_report_assets(
     chart_image_paths = {} # ABSOLUTE paths
 
     try:
-        # --- Prepare common data ---
         rdata = _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fundamentals, plot_period_years)
-        # Make a copy specifically for image generation if functions modify it
         hist_data_for_images = rdata['historical_data'].copy()
 
-        # Define configurations for Matplotlib charts
-        # Ensure the functions exist and are imported correctly
+        # --- (Image configs and generation loop unchanged) ---
         image_configs = [
-            ('forecast', plot_forecast_mpl, f"{ticker}_forecast_{ts}.png", rdata['detailed_ta_data'], rdata), # Pass rdata
-            ('historical_price_volume', plot_historical_mpl, f"{ticker}_hist_price_vol_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()), # Pass copy
-            ('bollinger_bands', plot_bollinger_mpl, f"{ticker}_bollinger_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()), # Pass copy
-            ('rsi', plot_rsi_mpl, f"{ticker}_rsi_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()), # Pass copy
-            ('macd_lines', plot_macd_lines_mpl, f"{ticker}_macd_lines_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()), # Pass copy
-            ('macd_histogram', plot_macd_hist_mpl, f"{ticker}_macd_hist_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()) # Pass copy
+            ('forecast', plot_forecast_mpl, f"{ticker}_forecast_{ts}.png", rdata['detailed_ta_data'], rdata),
+            ('historical_price_volume', plot_historical_mpl, f"{ticker}_hist_price_vol_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()),
+            ('bollinger_bands', plot_bollinger_mpl, f"{ticker}_bollinger_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()),
+            ('rsi', plot_rsi_mpl, f"{ticker}_rsi_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()),
+            ('macd_lines', plot_macd_lines_mpl, f"{ticker}_macd_lines_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()),
+            ('macd_histogram', plot_macd_hist_mpl, f"{ticker}_macd_hist_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy())
         ]
-
-        # --- Generate and Save Matplotlib Figures ---
         print("[WP Assets] Generating and saving Matplotlib charts...")
         chart_conclusions = {}
         for chart_key, mpl_func, filename, conclusion_data, data_arg in image_configs:
             img_path = os.path.join(static_dir, filename)
             print(f"  Generating {chart_key}...")
-
-            if mpl_func is None:
-                 print(f"    SKIPPING: Plotting function for '{chart_key}' is not available.")
-                 continue
-
+            if mpl_func is None: continue
             mpl_fig = None
             try:
-                # --- Step 1: Generate the Matplotlib Figure ---
                 print(f"    Calling function: {mpl_func.__name__}")
-                if chart_key == 'forecast':
-                    mpl_fig = mpl_func(data_arg, ticker) # Pass rdata and ticker
-                else:
-                    # Pass df, ticker, years to other plot functions
-                    mpl_fig = mpl_func(data_arg, ticker, plot_period_years=plot_period_years)
-
+                if chart_key == 'forecast': mpl_fig = mpl_func(data_arg, ticker)
+                else: mpl_fig = mpl_func(data_arg, ticker, plot_period_years=plot_period_years)
                 if mpl_fig is None:
                     print(f"    FAILED (Plot Generation): Function '{mpl_func.__name__}' returned None for '{chart_key}'.")
                     continue
-
-                # --- Step 2: Save the Figure ---
                 print(f"    Attempting to save figure to: {filename}")
                 mpl_fig.savefig(img_path, bbox_inches='tight', dpi=100)
-                plt.close(mpl_fig) # Close figure AFTER successful save
+                plt.close(mpl_fig)
                 print(f"    Successfully saved: {filename}")
-
-                # --- Step 3: Store the ABSOLUTE path ---
                 chart_image_paths[chart_key] = img_path
                 print(f"    Stored path for '{chart_key}'.")
-
-                # --- Step 4: Store conclusions using PRE-CALCULATED data---
-                # Use the functions imported at the top
+                # Store conclusions
                 if chart_key == 'bollinger_bands' and conclusion_data:
-                     # Use pre-calculated values from detailed_ta_data (passed as conclusion_data)
-                     chart_conclusions[chart_key] = get_bb_conclusion(
-                         conclusion_data.get('Current_Price'),
-                         conclusion_data.get('BB_Upper'),
-                         conclusion_data.get('BB_Lower'),
-                         conclusion_data.get('BB_Middle')
-                     )
+                     chart_conclusions[chart_key] = get_bb_conclusion(conclusion_data.get('Current_Price'), conclusion_data.get('BB_Upper'), conclusion_data.get('BB_Lower'), conclusion_data.get('BB_Middle'))
                 elif chart_key == 'rsi' and conclusion_data:
                      rsi_val = conclusion_data.get('RSI_14')
-                     chart_conclusions[chart_key] = get_rsi_conclusion(rsi_val) # Use imported function
+                     chart_conclusions[chart_key] = get_rsi_conclusion(rsi_val)
                 elif chart_key == 'macd_histogram' and conclusion_data:
-                     # Store combined MACD conclusion (already uses imported function)
-                     chart_conclusions['macd'] = get_macd_conclusion(
-                         conclusion_data.get('MACD_Line'), conclusion_data.get('MACD_Signal'),
-                         conclusion_data.get('MACD_Hist'), conclusion_data.get('MACD_Hist_Prev')
-                     )
-
+                     chart_conclusions['macd'] = get_macd_conclusion(conclusion_data.get('MACD_Line'), conclusion_data.get('MACD_Signal'), conclusion_data.get('MACD_Hist'), conclusion_data.get('MACD_Hist_Prev'))
             except Exception as e:
                 print(f"    FAILED ({'Saving' if mpl_fig else 'Generation'}) for '{chart_key}': {e}")
                 import traceback
                 traceback.print_exc()
-                if mpl_fig is not None:
-                    plt.close(mpl_fig)
+                if mpl_fig is not None: plt.close(mpl_fig)
 
         # --- Generate HTML Components ---
         print("[WP Assets] Generating text/table HTML components...")
+        # --- (Component generation calls unchanged, but taxes_html is no longer generated/needed) ---
         intro_html = generate_introduction_html(ticker, rdata)
         metrics_summary_html = generate_metrics_summary_html(ticker, rdata)
         detailed_forecast_table_html = generate_detailed_forecast_table_html(ticker, rdata)
@@ -940,7 +908,7 @@ def create_wordpress_report_assets(
         financial_health_html = generate_financial_health_html(ticker, rdata)
         financial_efficiency_html = generate_financial_efficiency_html(ticker, rdata)
         profitability_growth_html = generate_profitability_growth_html(ticker, rdata)
-        taxes_html = generate_taxes_html(ticker, rdata)
+        # taxes_html = generate_taxes_html(ticker, rdata) # <-- Removed
         dividends_shareholder_returns_html = generate_dividends_shareholder_returns_html(ticker, rdata)
         technical_analysis_summary_html = generate_technical_analysis_summary_html(ticker, rdata)
         stock_price_statistics_html = generate_stock_price_statistics_html(ticker, rdata)
@@ -952,8 +920,8 @@ def create_wordpress_report_assets(
         faq_html = generate_faq_html(ticker, rdata)
         report_info_disclaimer_html = generate_report_info_disclaimer_html(datetime.now(pytz.utc))
 
-        # --- Assemble TEXT-ONLY Report Body ---
-        print("[WP Assets] Assembling text-only HTML...")
+        # --- Assemble Report Body Content (Taxes Section Removed from list) ---
+        print("[WP Assets] Assembling report body HTML...")
         report_body_content = ""
         html_sections = [
             ("Introduction and Overview", intro_html, "introduction-overview"),
@@ -970,23 +938,20 @@ def create_wordpress_report_assets(
             ("Financial Health", financial_health_html, "financial-health"),
             ("Financial Efficiency", financial_efficiency_html, "financial-efficiency"),
             ("Profitability and Growth", profitability_growth_html, "profitability-growth"),
-            ("Taxes", taxes_html, "taxes"),
+            # ("Taxes", taxes_html, "taxes"), # <-- REMOVED THIS LINE
             ("Dividends and Shareholder Returns", dividends_shareholder_returns_html, "dividends-shareholder-returns"),
             ("Technical Analysis", technical_analysis_summary_html, "technical-analysis-summary"),
             ("Bollinger Bands Analysis",
              (f"<img src='/static/{os.path.basename(chart_image_paths['bollinger_bands'])}' alt='{ticker} Bollinger Bands Chart' class='static-chart-image'>" if 'bollinger_bands' in chart_image_paths else "<p><i>Bollinger Bands chart failed to generate.</i></p>") +
-             # Use stored conclusion
              f"<div class='indicator-conclusion'>{chart_conclusions.get('bollinger_bands', 'Bollinger Bands conclusion not available.')}</div>",
              "tech-analysis-bb"),
             ("RSI Analysis",
              (f"<img src='/static/{os.path.basename(chart_image_paths['rsi'])}' alt='{ticker} RSI Chart' class='static-chart-image'>" if 'rsi' in chart_image_paths else "<p><i>RSI chart failed to generate.</i></p>") +
-             # Use stored conclusion
              f"<div class='indicator-conclusion'>{chart_conclusions.get('rsi', 'RSI conclusion not available.')}</div>",
              "tech-analysis-rsi"),
             ("MACD Analysis",
              (f"<img src='/static/{os.path.basename(chart_image_paths['macd_lines'])}' alt='{ticker} MACD Lines Chart' class='static-chart-image'>" if 'macd_lines' in chart_image_paths else "<p><i>MACD Lines chart failed to generate.</i></p>") +
              (f"<img src='/static/{os.path.basename(chart_image_paths['macd_histogram'])}' alt='{ticker} MACD Histogram Chart' class='static-chart-image'>" if 'macd_histogram' in chart_image_paths else "<p><i>MACD Histogram chart failed to generate.</i></p>") +
-             # Use stored conclusion
              f"<div class='indicator-conclusion'>{chart_conclusions.get('macd', 'MACD conclusion not available.')}</div>",
              "tech-analysis-macd"),
             ("Historical Price & Volume",
@@ -1002,8 +967,7 @@ def create_wordpress_report_assets(
             ("Frequently Asked Questions", faq_html, "frequently-asked-questions"),
             ("Report Information and Disclaimer", report_info_disclaimer_html, "report-information-disclaimer")
         ]
-
-        # Loop through sections
+        # --- (Loop to build report body remains the same) ---
         for item in html_sections:
             title, html_content = item[0], item[1]
             section_class = item[2] if len(item) > 2 else title.lower().replace(" ", "-").replace("&", "and")
@@ -1014,29 +978,17 @@ def create_wordpress_report_assets(
                 report_body_content += f'</div>\n'
             else:
                 print(f"[WP Assets] Skipping empty or failed section: {title}")
+        # --- End loop ---
 
-        # Assemble Final HTML Document
-        text_report_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{ticker} Stock Analysis Report (WP Content)</title>
-    {custom_style}
-</head>
-<body>
-    <div class="report-container">
-        {report_body_content}
-    </div>
-</body>
-</html>"""
+        # --- Assemble Final HTML FRAGMENT (Style + Body Content) ---
+        final_html_fragment = f"{custom_style}\n<div class=\"report-container\">\n{report_body_content}\n</div>"
 
         print(f"[WP Assets] Generation complete for {ticker}.")
-        # Convert successfully saved ABSOLUTE paths to relative URLs
         image_urls = {key: f"/static/{os.path.basename(path)}" for key, path in chart_image_paths.items()}
-        print(f"[WP Assets] Generated URLs: {image_urls}") # Log the final URLs
+        print(f"[WP Assets] Generated URLs: {image_urls}")
 
-        return text_report_html, image_urls # Return relative URLs
+        # --- Return the HTML FRAGMENT and the URLs ---
+        return final_html_fragment, image_urls
 
     except ValueError as ve:
         print(f"[WP Assets] Value Error during report generation for {ticker}: {ve}")
@@ -1047,4 +999,3 @@ def create_wordpress_report_assets(
         traceback.print_exc()
         return f"<h2>Unexpected Error Generating Report for {ticker}</h2><p>{e}</p>", {}
 
-# ... [Keep the rest of report_generator.py the same] ...

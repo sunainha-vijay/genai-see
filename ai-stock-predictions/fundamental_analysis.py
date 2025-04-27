@@ -357,15 +357,6 @@ def extract_financial_efficiency_data(fundamentals: dict):
     }
     return metrics
 
-def extract_tax_data(fundamentals: dict):
-    """Extracts data for the Taxes section."""
-    info = fundamentals.get('info', {})
-    # Tax data is rarely available directly in yfinance 'info'
-    metrics = {
-        "Effective Tax Rate (TTM)": "N/A", # Needs calculation from financial statements
-        "Income Tax Paid (TTM)": "N/A", # Needs calculation from financial statements
-    }
-    return metrics
 
 def extract_stock_price_stats_data(fundamentals: dict):
     """Extracts data for the Stock Price Statistics section."""

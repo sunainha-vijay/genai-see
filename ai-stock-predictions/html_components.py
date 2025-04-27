@@ -671,61 +671,6 @@ def generate_profitability_growth_html(ticker, rdata):
     return narrative + content
 
 
-def generate_taxes_html(ticker, rdata):
-    """Generates the Taxes section."""
-    tax_data = rdata.get('tax_data', {}) # Assumes this key exists
-    effective_tax_rate = tax_data.get('Effective Tax Rate (TTM)', 'N/A') # Use updated key
-    profit_data = rdata.get('profitability_data', {})
-    net_income_str = profit_data.get('Net Income (TTM)', 'N/A')
-    commentary = ""
-
-    etr_val = None
-    net_income_val = None
-    if '%' in str(effective_tax_rate):
-        try:
-            etr_val = float(effective_tax_rate.replace('%', '')) / 100.0  # Convert to fraction
-        except ValueError:
-            pass
-    if '$' in str(net_income_str): # Crude check if it's formatted currency
-        try:
-            # Attempt to parse formatted large number back to float
-            num_part = net_income_str.replace('$','').strip()
-            multiplier = 1
-            if 'T' in num_part: multiplier = 1e12; num_part = num_part.replace('T','').strip()
-            elif 'B' in num_part: multiplier = 1e9; num_part = num_part.replace('B','').strip()
-            elif 'M' in num_part: multiplier = 1e6; num_part = num_part.replace('M','').strip()
-            elif 'K' in num_part: multiplier = 1e3; num_part = num_part.replace('K','').strip()
-            net_income_val = float(num_part.replace(',','')) * multiplier
-        except: pass
-
-    if etr_val is not None and net_income_val is not None:
-        # Estimate Pre-Tax Income: Net Income / (1 - Tax Rate)
-        if (1 - etr_val) != 0:
-             pre_tax_income = net_income_val / (1 - etr_val)
-             tax_paid_estimate = pre_tax_income * etr_val
-             tax_paid_fmt = format_html_value(tax_paid_estimate, 'large_number')
-             profit_margin = profit_data.get('Profit Margin (TTM)', 'N/A')
-             commentary = f"An estimated Effective Tax Rate of {format_html_value(etr_val, 'percent')} implies roughly {tax_paid_fmt} in taxes paid based on TTM Net Income. This tax burden impacts the final Profit Margin of {profit_margin}."
-        else:
-             commentary = f"Effective Tax Rate ({format_html_value(etr_val, 'percent')}) is reported, but impact calculation failed."
-    elif etr_val is not None:
-        commentary = f"The estimated Effective Tax Rate is {format_html_value(etr_val, 'percent')}. Net income data needed for impact analysis."
-    else:
-         commentary = "Specific tax details (Effective Tax Rate) were not readily available."
-
-    # Use helper function for table generation
-    content = generate_metrics_section_content(tax_data)
-
-    narrative = f"""
-    <div class="narrative">
-        <p>Corporate taxes affect net profitability and cash flow available to shareholders.</p>
-        <p>{commentary.strip()}</p>
-        <p><i>Note: Tax calculations are estimates. Actual tax paid can vary due to deductions, credits, and deferred taxes. Tax laws can change.</i></p>
-    </div>"""
-
-    return narrative + content
-
-
 def generate_dividends_shareholder_returns_html(ticker, rdata):
     """Generates the DIVIDENDS AND SHAREHOLDER RETURNS section (Existing, but enhanced)."""
     dividend_data = rdata.get('dividends_data', {})
