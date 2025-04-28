@@ -1,4 +1,4 @@
-# report_generator.py (UPDATED - Taxes Section Removed)
+# report_generator.py (MODIFIED FOR BASE64 EMBEDDING)
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.io import to_html, write_image
@@ -12,9 +12,12 @@ import plotly.io as pio
 from threading import Thread
 import tempfile
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg') # Ensure Agg backend is used
 import matplotlib.pyplot as plt
-# Optional: import seaborn as sns
+# --- NEW: Imports for Base64 encoding ---
+import base64
+from io import BytesIO
+# --- End New Imports ---
 
 try:
     import psutil
@@ -22,19 +25,16 @@ except ImportError:
     psutil = None
 pio.kaleido.scope.default_format = "png"
 
-
-# Import functions from helper modules
-# --- Ensure necessary imports are present ---
+# Import functions from helper modules (ensure evaluation imports are present if needed)
 from technical_analysis import (
-    # Plotly functions (for full report)
     plot_historical_line_chart, plot_price_bollinger, plot_rsi,
     plot_macd_lines, plot_macd_histogram, calculate_detailed_ta,
-    # Conclusion functions (needed by WP report)
-    get_macd_conclusion, get_rsi_conclusion, get_bb_conclusion, # Make sure these are imported
-    # Matplotlib functions (for WP report)
+    get_macd_conclusion, get_rsi_conclusion, get_bb_conclusion,
     plot_historical_mpl, plot_bollinger_mpl, plot_rsi_mpl,
     plot_macd_lines_mpl, plot_macd_hist_mpl, plot_forecast_mpl
 )
+# --- Remove or keep evaluation imports based on prophet_model.py ---
+# from evaluation import calculate_evaluation_metrics, print_metrics
 
 from html_components import (
     generate_introduction_html, generate_metrics_summary_html,
@@ -42,7 +42,6 @@ from html_components import (
     generate_total_valuation_html, generate_share_statistics_html,
     generate_valuation_metrics_html, generate_financial_health_html,
     generate_financial_efficiency_html, generate_profitability_growth_html,
-    # generate_taxes_html, # <-- Corresponding function can be optionally removed from html_components.py
     generate_dividends_shareholder_returns_html,
     generate_technical_analysis_summary_html, generate_stock_price_statistics_html,
     generate_short_selling_info_html, generate_risk_factors_html,
@@ -55,7 +54,6 @@ from fundamental_analysis import (
     extract_profitability, extract_dividends_splits, extract_analyst_info,
     extract_news, safe_get, extract_total_valuation_data,
     extract_share_statistics_data, extract_financial_efficiency_data,
-    # extract_tax_data, # <-- Corresponding function can be optionally removed from fundamental_analysis.py
     extract_stock_price_stats_data,
     extract_short_selling_data
 )
@@ -151,8 +149,8 @@ custom_style = """
   .indicator-chart-container { background-color: #ffffff; padding: 0; margin-bottom: 0.5rem; border-radius: 8px; border: 1px solid #dee2e6; width: 100%; max-width: 100%; position: relative; overflow: hidden; }
   .plotly-graph-div { margin: 0 auto !important; width: 100% !important; height: 100% !important; position: relative; }
   .modebar { position: absolute !important; top: 2px !important; left: 50% !important; transform: translateX(-50%) !important; width: auto !important; max-width: calc(100% - 10px) !important; display: flex !important; flex-wrap: wrap !important; justify-content: center !important; background-color: rgba(245, 245, 245, 0.9) !important; border: 1px solid #ccc !important; border-radius: 4px !important; padding: 3px 5px !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important; opacity: 1 !important; z-index: 1001 !important; transition: none !important; }
-  /* Styles for static Matplotlib images - Use this class in WP HTML */
-  .static-chart-image { display: block; max-width: 100%; height: auto; margin: 1rem auto; border: 1px solid #dee2e6; border-radius: 4px; }
+  /* Styles for static/embedded images */
+  .static-chart-image, .embedded-chart-image { display: block; max-width: 100%; height: auto; margin: 1rem auto; border: 1px solid #dee2e6; border-radius: 4px; }
   .indicator-conclusion { padding: 1.2rem 1.5rem; margin-top: 0; border-top: 1px solid #dee2e6; font-size: 0.95rem; line-height: 1.6; color: #495057; background-color: #f8f9fa; border-radius: 0 0 8px 8px; margin-bottom: 1.5rem; }
   .conclusion-outlook .conclusion-columns { display: flex; flex-wrap: wrap; gap: 2.5rem; margin: 1.5rem 0; padding: 1.5rem; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;} /* Updated class name */
   .conclusion-outlook .conclusion-column { flex: 1; min-width: 300px; }
@@ -182,19 +180,19 @@ custom_style = """
   .report-information-disclaimer .general-info .disclaimer { margin-top: 1rem; padding: 1rem; background-color: #e9ecef; border-left-color: #6c757d; font-size: 0.85rem; }
   /* Add styles for new sections if needed */
   .total-valuation table, .share-statistics table, .financial-efficiency table,
-  .taxes table, .stock-price-statistics table, .short-selling-information table { /* Apply metric table style to new tables */
+  .stock-price-statistics table, .short-selling-information table { /* Apply metric table style to new tables */
       width: 100%; border-collapse: collapse; margin-top: 1rem;
   }
    .total-valuation td, .share-statistics td, .financial-efficiency td,
-  .taxes td, .stock-price-statistics td, .short-selling-information td {
+   .stock-price-statistics td, .short-selling-information td {
       padding: 0.9rem 0.5rem; border-bottom: 1px solid #dee2e6; font-size: 0.95rem; vertical-align: top;
   }
    .total-valuation tr:last-child td, .share-statistics tr:last-child td, .financial-efficiency tr:last-child td,
-  .taxes tr:last-child td, .stock-price-statistics tr:last-child td, .short-selling-information tr:last-child td { border-bottom: none; }
+   .stock-price-statistics tr:last-child td, .short-selling-information tr:last-child td { border-bottom: none; }
    .total-valuation td:first-child, .share-statistics td:first-child, .financial-efficiency td:first-child,
-  .taxes td:first-child, .stock-price-statistics td:first-child, .short-selling-information td:first-child { font-weight: 500; color: #495057; width: 40%; word-break: break-word; white-space: normal; }
+   .stock-price-statistics td:first-child, .short-selling-information td:first-child { font-weight: 500; color: #495057; width: 40%; word-break: break-word; white-space: normal; }
    .total-valuation td:last-child, .share-statistics td:last-child, .financial-efficiency td:last-child,
-  .taxes td:last-child, .stock-price-statistics td:last-child, .short-selling-information td:last-child { text-align: right; font-weight: 600; color: #343a40; white-space: nowrap;}
+   .stock-price-statistics td:last-child, .short-selling-information td:last-child { text-align: right; font-weight: 600; color: #343a40; white-space: nowrap;}
 
   /* Responsive Adjustments (Consolidated) */
   @media (max-width: 992px) {
@@ -214,7 +212,6 @@ custom_style = """
       body { font-size: 14px; }
       .report-container { padding: 1rem 1rem; padding-bottom: 2rem; margin: 0.5rem auto; }
       .report-container h1.report-title { font-size: 1.8rem; margin-bottom: 1.5rem; }
-      /* Removed .section margin-bottom: 2rem */
       .report-container h2 { font-size: 1.3rem; margin-bottom: 1rem; margin-top: 1.5rem;}
       .report-container h3 { font-size: 1.1rem; }
       .report-container h4 { font-size: 1rem; }
@@ -225,7 +222,7 @@ custom_style = """
       .metric-label { font-size: 0.7rem; }
       .profile-grid { grid-template-columns: 1fr; }
       .metrics-table td:first-child, .total-valuation td:first-child, .share-statistics td:first-child,
-      .financial-efficiency td:first-child, .taxes td:first-child, .stock-price-statistics td:first-child,
+      .financial-efficiency td:first-child, .stock-price-statistics td:first-child,
       .short-selling-information td:first-child { width: 35%; }
       .table-container { margin-top: 0.8rem; }
       .report-container th, .report-container td { font-size: 0.85rem; padding: 0.7rem 0.8rem; }
@@ -271,6 +268,25 @@ custom_style = """
   }
 </style>
 """
+
+# Helper function to get Base64 encoded image string from Matplotlib figure
+def get_mpl_base64(fig):
+    """Converts a Matplotlib figure to a Base64 encoded PNG image string."""
+    if fig is None:
+        return None
+    try:
+        buf = BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight', dpi=100) # Save to buffer
+        plt.close(fig) # Close the figure to free memory
+        buf.seek(0)
+        img_bytes = buf.getvalue()
+        base64_string = base64.b64encode(img_bytes).decode('utf-8')
+        return f"data:image/png;base64,{base64_string}"
+    except Exception as e:
+        print(f"Error converting Matplotlib figure to Base64: {e}")
+        if fig:
+            plt.close(fig) # Ensure figure is closed on error
+        return None
 
 # Helper function to determine sentiment (Keep Unchanged)
 def determine_sentiment(detailed_ta_data, overall_pct_change):
@@ -344,13 +360,18 @@ def _write_plotly_image(fig, path, fallback_msg="Chart could not be generated.",
             final_ext = '.png'
             path += final_ext
 
+        # Use tempfile context manager properly
         with tempfile.NamedTemporaryFile(suffix=final_ext, delete=False) as temp_file_obj:
             temp_path = temp_file_obj.name
+            # No need to close explicitly, context manager handles it
 
         start_time = time.time()
 
         def write_with_timeout():
-            write_image(fig, temp_path, engine='kaleido', scale=1.0, width=1200, height=600)
+            # Ensure fig dimensions are reasonable before writing
+            fig_width = fig.layout.width if fig.layout.width else 1200
+            fig_height = fig.layout.height if fig.layout.height else 600
+            write_image(fig, temp_path, engine='kaleido', scale=1.0, width=fig_width, height=fig_height)
             return temp_path
 
         result = [None]
@@ -359,7 +380,7 @@ def _write_plotly_image(fig, path, fallback_msg="Chart could not be generated.",
                 result[0] = write_with_timeout()
             except Exception as e:
                 print(f"[Thread Error] Image write failed for {os.path.basename(temp_path)}: {e}")
-                result[0] = None
+                result[0] = None # Signal failure
 
         thread = Thread(target=target_wrapper)
         thread.daemon = True
@@ -368,46 +389,50 @@ def _write_plotly_image(fig, path, fallback_msg="Chart could not be generated.",
 
         if thread.is_alive():
             print(f"Error: Image generation timed out after {timeout_seconds}s for {os.path.basename(path)}")
+            # Attempt to kill lingering processes (optional, might need adjustment)
             if psutil:
-                for proc in psutil.process_iter(['name']):
-                    if proc.info.get('name') in ['kaleido', 'chrome', 'chromium']:
-                        try:
-                            proc.terminate()
-                        except psutil.Error:
-                            pass
+                 current_pid = os.getpid()
+                 parent = psutil.Process(current_pid)
+                 children = parent.children(recursive=True)
+                 for proc in children:
+                     if proc.name() in ['kaleido', 'chrome', 'chromium']:
+                         try: proc.terminate()
+                         except psutil.Error: pass
             if os.path.exists(temp_path):
                  try: os.remove(temp_path)
                  except OSError: pass
             return None
 
         if result[0] is None:
-            print(f"Error: Image generation failed for {os.path.basename(path)} (Check [Thread Error] above if any).")
-            if os.path.exists(temp_path):
-                 try: os.remove(temp_path)
-                 except OSError: pass
-            return None
+             print(f"Error: Image generation failed for {os.path.basename(path)} (Check [Thread Error] above if any).")
+             # No need to delete temp_path here as result[0] being None implies it wasn't created or was handled in target_wrapper
+             return None
 
+        # Move the successfully created temp file to the final path
         os.rename(temp_path, path)
         print(f"Saved chart image to: {os.path.basename(path)}")
-        temp_path = None
+        temp_path = None # Prevent deletion in finally block
         return path
 
     except Exception as img_err:
         print(f"Error saving chart image to {os.path.basename(path)}: {img_err}")
-        if temp_path and os.path.exists(temp_path):
+        # temp_path might not be defined if error occurred before its assignment
+        if 'temp_path' in locals() and temp_path and os.path.exists(temp_path):
              try: os.remove(temp_path)
              except OSError: pass
         return None
     finally:
-        if temp_path and os.path.exists(temp_path):
+        # Clean up temp file only if it still exists and wasn't renamed
+        if 'temp_path' in locals() and temp_path and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
             except OSError:
                 pass
 
+
 # Helper function to prepare common data (Keep Unchanged)
 def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fundamentals, plot_period_years):
-    # ... (implementation unchanged, but ensure extract_tax_data is not called/used if removed from fundamental_analysis.py) ...
+    # ... (implementation unchanged) ...
     data_out = {}
 
     # --- Data Validation ---
@@ -431,14 +456,19 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
     time_col = "Period"; period_label = "Period"
     if forecast_data is not None and not forecast_data.empty and "Period" in forecast_data.columns:
         first_period = str(forecast_data['Period'].iloc[0])
-        if len(first_period) == 7 and '-' in first_period: period_label = "Month"
-        elif len(first_period) == 8 and '-' in first_period and first_period[4] == '-': period_label = "Week"
-        elif len(first_period) == 10: period_label = "Day"
+        if '-' in first_period:
+             parts = first_period.split('-')
+             if len(parts) == 2 and len(parts[0]) == 4 and len(parts[1]) == 2: period_label = "Month" # YYYY-MM
+             elif len(parts) == 3 and len(parts[0]) == 4 and len(parts[1]) == 2 and len(parts[2]) == 2: period_label = "Day" # YYYY-MM-DD
+             elif len(parts) == 2 and len(parts[0]) == 4 and len(parts[1].upper().startswith('W')): period_label = "Week" # YYYY-Www
     elif actual_data is not None and not actual_data.empty and "Period" in actual_data.columns:
-         first_period = str(actual_data['Period'].iloc[0])
-         if len(first_period) == 7 and '-' in first_period: period_label = "Month"
-         elif len(first_period) == 8 and '-' in first_period and first_period[4] == '-': period_label = "Week"
-         elif len(first_period) == 10: period_label = "Day"
+        first_period = str(actual_data['Period'].iloc[0])
+        if '-' in first_period:
+             parts = first_period.split('-')
+             if len(parts) == 2 and len(parts[0]) == 4 and len(parts[1]) == 2: period_label = "Month" # YYYY-MM
+             elif len(parts) == 3 and len(parts[0]) == 4 and len(parts[1]) == 2 and len(parts[2]) == 2: period_label = "Day" # YYYY-MM-DD
+             elif len(parts) == 2 and len(parts[0]) == 4 and len(parts[1].upper().startswith('W')): period_label = "Week" # YYYY-Www
+
     data_out['time_col'] = time_col
     data_out['period_label'] = period_label
 
@@ -458,7 +488,11 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
             daily_returns = last_30_days_df['Close'].pct_change().dropna()
             if not daily_returns.empty:
                 volatility_std_dev = daily_returns.std()
-                volatility = volatility_std_dev * np.sqrt(252) * 100
+                # Ensure volatility_std_dev is not NaN before calculation
+                if not pd.isna(volatility_std_dev):
+                    volatility = volatility_std_dev * np.sqrt(252) * 100
+                else:
+                    volatility = 0.0 # Or handle as None if preferred
             else: volatility = 0.0
             price_diff = last_30_days_df['Close'].diff().dropna()
             green_days = (price_diff > 0).sum(); total_days = len(price_diff)
@@ -470,25 +504,22 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
 
     forecast_horizon_periods = 0; forecast_12m = pd.DataFrame(); final_forecast_average = None; forecast_1m = None
     if forecast_data is not None and not forecast_data.empty and 'Average' in forecast_data.columns:
-        if period_label == "Month": forecast_horizon_periods = 12
-        elif period_label == "Week": forecast_horizon_periods = 52
-        elif period_label == "Day": forecast_horizon_periods = 30
-        else: forecast_horizon_periods = len(forecast_data)
+        # Determine the number of periods equivalent to 1 year based on the label
+        periods_in_year = 12 if period_label == "Month" else 52 if period_label == "Week" else 252 if period_label == "Day" else len(forecast_data)
+        periods_in_month = 4 if period_label == "Week" else 21 if period_label == "Day" else 1 if period_label == "Month" else 1
+
+        idx_1m = min(periods_in_month - 1, len(forecast_data)-1)
+        idx_1y = min(periods_in_year - 1, len(forecast_data)-1)
 
         if len(forecast_data) > 0:
-            idx_1m = 0
-            if period_label == "Week": idx_1m = min(3, len(forecast_data)-1)
-            elif period_label == "Day": idx_1m = min(21, len(forecast_data)-1)
-            forecast_1m = forecast_data['Average'].iloc[idx_1m]
-
-        if len(forecast_data) > 0:
-             idx_1y = min(11, len(forecast_data)-1)
-             if period_label == "Week": idx_1y = min(51, len(forecast_data)-1)
-             elif period_label == "Day": idx_1y = min(251, len(forecast_data)-1)
+             forecast_1m = forecast_data['Average'].iloc[idx_1m]
              final_forecast_average = forecast_data['Average'].iloc[idx_1y]
 
-        forecast_table_periods = min(len(forecast_data), 24 if period_label=="Month" else len(forecast_data))
+        # Show up to 24 months, 52 weeks, or ~252 days in the table
+        max_table_periods = 24 if period_label=="Month" else 52 if period_label=="Week" else 252 if period_label=="Day" else len(forecast_data)
+        forecast_table_periods = min(len(forecast_data), max_table_periods)
         forecast_12m = forecast_data.head(forecast_table_periods)
+        forecast_horizon_periods = len(forecast_data) # Total number of forecast periods
 
     overall_pct_change = 0.0
     if current_price is not None and final_forecast_average is not None and current_price != 0:
@@ -522,12 +553,14 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
          else:
              monthly_forecast_table_data['Potential ROI'] = 0.0
              monthly_forecast_table_data['Action'] = 'N/A'
+             # Ensure Low/High columns exist even if only Average was present
              if 'Average' in monthly_forecast_table_data.columns:
                  if 'Low' not in monthly_forecast_table_data.columns: monthly_forecast_table_data['Low'] = monthly_forecast_table_data['Average']
                  if 'High' not in monthly_forecast_table_data.columns: monthly_forecast_table_data['High'] = monthly_forecast_table_data['Average']
     data_out['monthly_forecast_table_data'] = monthly_forecast_table_data
 
-    # --- Extract Fundamental Data (Taxes section data extraction is removed implicitly if extract_tax_data is removed/commented out) ---
+
+    # --- Extract Fundamental Data ---
     print("Extracting fundamental data sections...")
     data_out['profile_data'] = extract_company_profile(fundamentals)
     data_out['valuation_data'] = extract_valuation_metrics(fundamentals)
@@ -539,44 +572,51 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
     data_out['total_valuation_data'] = extract_total_valuation_data(fundamentals, current_price)
     data_out['share_statistics_data'] = extract_share_statistics_data(fundamentals, current_price)
     data_out['financial_efficiency_data'] = extract_financial_efficiency_data(fundamentals)
-    # data_out['tax_data'] = extract_tax_data(fundamentals) # <-- Ensure this line is removed or commented out
     data_out['stock_price_stats_data'] = extract_stock_price_stats_data(fundamentals)
     data_out['short_selling_data'] = extract_short_selling_data(fundamentals)
 
     # --- Calculate Risk Items ---
     print("Calculating risk factors...")
-    risk_items = [] # Initialize empty list
+    risk_items = []
     # --- (Risk calculation logic remains the same) ---
     if sentiment.lower().find('bearish') != -1: risk_items.append(f"Overall technical sentiment is {sentiment}, suggesting caution.")
     if current_price is not None:
         if sma50 is not None and current_price < sma50: risk_items.append(f"Price ({current_price:,.2f}) is below the 50-Day SMA ({sma50:,.2f}), indicating potential short-term weakness.")
         if sma200 is not None and current_price < sma200: risk_items.append(f"Price ({current_price:,.2f}) is below the 200-Day SMA ({sma200:,.2f}), indicating potential long-term weakness.")
     if latest_rsi is not None and not pd.isna(latest_rsi) and latest_rsi > 70: risk_items.append(f"RSI ({latest_rsi:.1f}) is high (>70), suggesting potential overbought conditions.")
-    if latest_rsi is not None and not pd.isna(latest_rsi) and latest_rsi < 30: risk_items.append(f"RSI ({latest_rsi:.1f}) is low (<30), suggesting potential oversold conditions (though this can also be a buy signal).")
+    # Only add oversold as a risk if sentiment isn't already strongly bullish
+    if latest_rsi is not None and not pd.isna(latest_rsi) and latest_rsi < 30 and "Strong Bullish" not in sentiment:
+         risk_items.append(f"RSI ({latest_rsi:.1f}) is low (<30), suggesting potential oversold conditions (which could precede further downside or a rebound).")
 
+    # Check Debt/Equity from extracted data
     debt_equity_str = data_out['financial_health_data'].get('Debt/Equity (MRQ)', 'N/A')
     if debt_equity_str != 'N/A' and isinstance(debt_equity_str, str) and 'x' in debt_equity_str :
         try: debt_equity_val = float(debt_equity_str.replace('x',''))
-        except ValueError: debt_equity_val = None
+        except (ValueError, TypeError): debt_equity_val = None
         if debt_equity_val is not None and debt_equity_val > 2.0 :
               risk_items.append(f"High Debt-to-Equity ratio ({debt_equity_str}) indicates significant financial leverage risk.")
+
+    # Check Current Ratio from extracted data
     current_ratio_str = data_out['financial_health_data'].get('Current Ratio (MRQ)', 'N/A')
     if current_ratio_str != 'N/A' and isinstance(current_ratio_str, str) and 'x' in current_ratio_str :
         try: current_ratio_val = float(current_ratio_str.replace('x',''))
-        except ValueError: current_ratio_val = None
+        except (ValueError, TypeError): current_ratio_val = None
         if current_ratio_val is not None and current_ratio_val < 1.0 :
               risk_items.append(f"Current Ratio ({current_ratio_str}) is below 1.0, suggesting potential short-term liquidity challenges.")
 
+    # Check Revenue Growth from extracted data
     revenue_growth_str = data_out['profitability_data'].get('Revenue Growth (YoY)', 'N/A')
-    earnings_growth_str = data_out['profitability_data'].get('Earnings Growth (YoY)', 'N/A')
     if revenue_growth_str != 'N/A' and isinstance(revenue_growth_str, str) and '%' in revenue_growth_str:
         try: rev_growth = float(revenue_growth_str.replace('%',''))
-        except ValueError: rev_growth = None
+        except (ValueError, TypeError): rev_growth = None
         if rev_growth is not None and rev_growth < 0:
             risk_items.append(f"Negative year-over-year revenue growth ({revenue_growth_str}) poses a risk to future performance.")
+
+    # Check Earnings Growth from extracted data
+    earnings_growth_str = data_out['profitability_data'].get('Earnings Growth (YoY)', 'N/A')
     if earnings_growth_str != 'N/A' and isinstance(earnings_growth_str, str) and '%' in earnings_growth_str:
         try: earn_growth = float(earnings_growth_str.replace('%',''))
-        except ValueError: earn_growth = None
+        except (ValueError, TypeError): earn_growth = None
         if earn_growth is not None and earn_growth < 0:
             risk_items.append(f"Negative year-over-year earnings growth ({earnings_growth_str}) raises concerns about profitability trends.")
 
@@ -592,7 +632,7 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
     return data_out
 
 
-# --- Full Report Generation Function (Taxes Section Removed) ---
+# --- Full Report Generation Function (Keep Unchanged) ---
 def create_full_report(
     ticker,
     actual_data,
@@ -600,9 +640,10 @@ def create_full_report(
     historical_data,
     fundamentals,
     ts,
-    aggregation=None,
+    aggregation=None, # No longer used here
     app_root=None,
     plot_period_years=3
+    # removed evaluation_metrics - handled internally now
 ):
     global custom_style
     print(f"[Full Report] Starting generation for {ticker}...")
@@ -621,13 +662,16 @@ def create_full_report(
             merged_config = default_config.copy()
             if config: merged_config.update(config)
             try:
+                 # Add error handling for large figures
+                 if fig.to_dict().__sizeof__() > 5 * 1024 * 1024: # Example limit: 5MB
+                     print(f"Warning: Plotly figure '{div_id}' is large, might impact performance.")
                  return to_html(fig, include_plotlyjs='cdn', full_html=full_html, div_id=div_id, config=merged_config)
             except Exception as e:
-                 print(f"[Full Report] Error converting figure to HTML: {e}")
+                 print(f"[Full Report] Error converting figure '{div_id}' to HTML: {e}")
                  return f'<p style="color:red;">Error rendering plot: {e}</p>'
 
-        # --- Forecast Chart (Plotly) ---
-        # --- (Forecast chart generation logic unchanged) ---
+
+        # --- Forecast Chart (Plotly - logic unchanged) ---
         forecast_chart_fig = go.Figure()
         display_actual = rdata.get('actual_data')
         forecast_table = rdata.get('monthly_forecast_table_data')
@@ -651,7 +695,7 @@ def create_full_report(
             plot_cols = ['Low', 'Average', 'High'] if all(c in forecast_table for c in ['Low', 'Average', 'High']) else ['Average']
             for col in plot_cols:
                  forecast_chart_fig.add_trace(go.Scatter(x=forecast_table[time_col], y=forecast_table[col], mode='lines+markers', name=f'Fcst {col}', line=dict(color=colors[col], width=2), marker=dict(size=6, line=dict(width=1, color='#ffffff')), hovertemplate=f"<b>%{{x}} ({period_label})</b><br><b>{col}</b>: %{{y:.2f}}<extra></extra>"))
-            if forecast_1y is not None and 'Average' in forecast_table.columns:
+            if forecast_1y is not None and 'Average' in forecast_table.columns and time_col in forecast_table.columns:
                  annotation_text = (f"<b>{forecast_1y:.2f}</b><br><span style='color:{colors['Average']};'>{overall_pct_change:+.1f}% (1Y)</span>")
                  last_time_period = forecast_table[time_col].iloc[-1]
                  ax_val = 30; ay_val = -30
@@ -659,12 +703,11 @@ def create_full_report(
                      try: # Handle potential non-numeric comparison errors
                          y_second_last = forecast_table['Average'].iloc[-2]
                          if pd.to_numeric(forecast_1y, errors='coerce') < pd.to_numeric(y_second_last, errors='coerce'): ay_val = 30
-                     except (TypeError, IndexError):
-                         pass # Keep default annotation position on error
+                     except (TypeError, IndexError): pass # Keep default annotation position on error
                  forecast_chart_fig.add_annotation(x=last_time_period, y=forecast_1y, text=annotation_text, showarrow=True, arrowhead=2, ax=ax_val, ay=ay_val, bgcolor='rgba(255,255,255,0.8)', font=dict(color=colors['Average'], size=10), bordercolor='black', borderwidth=1)
 
         forecast_chart_fig.update_layout(
-            title=dict(text=f"{ticker} Price Forecast ({len(forecast_table) if forecast_table is not None else 0} {period_label}s)", y=0.98, x=0.5, xanchor='center', yanchor='top', font_size=14),
+            title=dict(text=f"{ticker} Price Forecast ({rdata.get('forecast_horizon_periods', 0)} {period_label}s)", y=0.98, x=0.5, xanchor='center', yanchor='top', font_size=14),
             legend=dict(orientation="h", yanchor="top", y=0.92, xanchor="center", x=0.5, font_size=10),
             xaxis=dict(title=period_label, type="category", categoryorder='array', categoryarray=combined_time_axis, tickangle=-45, tickformat="%b %Y", tickfont_size=10, domain=[0, 1], automargin=True),
             yaxis_title="Price ($)", yaxis=dict(domain=[0, 0.85], tickfont_size=10, automargin=True),
@@ -672,8 +715,8 @@ def create_full_report(
         )
         forecast_chart_html = fig_to_html(forecast_chart_fig, div_id='forecast-chart-div')
 
-        # --- Technical Analysis Charts HTML (Plotly) ---
-        # --- (TA chart generation unchanged) ---
+
+        # --- Technical Analysis Charts HTML (Plotly - logic unchanged) ---
         hist_data_for_ta = rdata['historical_data'].copy()
         historical_line_fig = plot_historical_line_chart(hist_data_for_ta, ticker)
         historical_chart_html = fig_to_html(historical_line_fig, div_id='hist-chart-div', include_plotlyjs=False)
@@ -687,9 +730,8 @@ def create_full_report(
         macd_hist_fig, _ = plot_macd_histogram(hist_data_for_ta.copy(), ticker, plot_period_years=plot_period_years)
         macd_hist_chart_html = fig_to_html(macd_hist_fig, div_id='macd-hist-chart-div', include_plotlyjs=False)
 
-        # --- Generate HTML Components ---
+        # --- Generate HTML Components (logic unchanged) ---
         print("[Full Report] Generating HTML components...")
-        # --- (Component generation calls unchanged, but taxes_html is no longer generated/needed) ---
         intro_html = generate_introduction_html(ticker, rdata)
         metrics_summary_html = generate_metrics_summary_html(ticker, rdata)
         detailed_forecast_table_html = generate_detailed_forecast_table_html(ticker, rdata)
@@ -700,7 +742,6 @@ def create_full_report(
         financial_health_html = generate_financial_health_html(ticker, rdata)
         financial_efficiency_html = generate_financial_efficiency_html(ticker, rdata)
         profitability_growth_html = generate_profitability_growth_html(ticker, rdata)
-        # taxes_html = generate_taxes_html(ticker, rdata) # <-- Removed
         dividends_shareholder_returns_html = generate_dividends_shareholder_returns_html(ticker, rdata)
         technical_analysis_summary_html = generate_technical_analysis_summary_html(ticker, rdata)
         stock_price_statistics_html = generate_stock_price_statistics_html(ticker, rdata)
@@ -712,9 +753,9 @@ def create_full_report(
         faq_html = generate_faq_html(ticker, rdata)
         report_info_disclaimer_html = generate_report_info_disclaimer_html(datetime.now(pytz.utc))
 
-        # --- Assemble Final HTML Structure (Taxes Section Removed) ---
+        # --- Assemble Final HTML Structure (structure unchanged) ---
         print("[Full Report] Assembling final HTML structure...")
-        report_body_content = f'<h1 class="report-title">{ticker} Stock Price Prediction & Analysis ({datetime.now(pytz.utc):%Y-%m-%d})</h1>\n'
+        report_body_content = f'<h1 class="report-title">{ticker} Stock Analysis & Price Forecast ({datetime.now(pytz.utc):%Y-%m-%d})</h1>\n'
         html_sections = [
             ("Introduction and Overview", intro_html, "introduction-overview"),
             ("Key Metrics and Forecast Summary", metrics_summary_html, "key-metrics-forecast"),
@@ -727,7 +768,6 @@ def create_full_report(
             ("Financial Health", financial_health_html, "financial-health"),
             ("Financial Efficiency", financial_efficiency_html, "financial-efficiency"),
             ("Profitability and Growth", profitability_growth_html, "profitability-growth"),
-            # ("Taxes", taxes_html, "taxes"), # <-- REMOVED THIS LINE
             ("Dividends and Shareholder Returns", dividends_shareholder_returns_html, "dividends-shareholder-returns"),
             ("Technical Analysis", technical_analysis_summary_html, "technical-analysis-summary"),
             ("Bollinger Bands Chart", bb_chart_html, "tech-chart-bb", None, bb_conclusion),
@@ -753,23 +793,27 @@ def create_full_report(
             section_class = item[2] if len(item) > 2 else title.lower().replace(" ", "-").replace("&", "and")
             narrative = item[3] if len(item) > 3 else None
             conclusion = item[4] if len(item) > 4 else None
-            has_content = bool(html_content and str(html_content).strip() and not str(html_content).startswith("<p>No data") and not str(html_content).startswith('<p style="color:red;">Error'))
+            has_content = bool(html_content and str(html_content).strip() and not str(html_content).startswith(("<p>No data",'<p style="color:red;">Error')))
             is_chart_section = section_class.startswith("tech-chart-") or section_class in ["historical-chart", "forecast-chart"]
             if has_content or (is_chart_section and (html_content or conclusion)):
                  report_body_content += f'<div class="section {section_class}">\n  <h2>{title}</h2>\n'
                  if narrative: report_body_content += f"  {narrative}\n"
                  chart_fallback_message = f'<p style="text-align:center; color:red; padding: 2rem 1rem;">Chart for {title} could not be generated.</p>'
                  if section_class == "tech-chart-macd-combined":
+                     # Handles potentially multiple charts + conclusion
                      report_body_content += f"  {html_content or chart_fallback_message}\n"
                  elif is_chart_section:
+                     # Standard single chart + conclusion structure
                      chart_html = html_content or chart_fallback_message
                      report_body_content += f'  <div class="indicator-chart-container">{chart_html}</div>\n'
                      if conclusion: report_body_content += f'  <div class="indicator-conclusion">{conclusion}</div>\n'
                  elif has_content:
+                     # Non-chart sections
                      report_body_content += f"  {html_content}\n"
                  report_body_content += f'</div>\n'
             else:
                  print(f"[Full Report] Skipping empty or failed section: {title}")
+
 
         # --- Assemble Final HTML Document (unchanged) ---
         full_html = f"""<!DOCTYPE html>
@@ -807,7 +851,7 @@ def create_full_report(
             print(f"[Full Report] Successfully generated and saved report: {report_path}")
         except Exception as e:
             print(f"[Full Report] Error writing report file to {report_path}: {e}")
-            return None, full_html
+            return None, full_html # Return HTML even if saving failed
 
         return report_path, full_html
 
@@ -821,7 +865,7 @@ def create_full_report(
         return None, f"<html><body><h2>Unexpected Error Generating Report for {ticker}</h2><p>{e}</p></body></html>"
 
 
-# --- WordPress Report Assets Generation Function (Taxes Section Removed) ---
+# --- WordPress Report Assets Generation Function (MODIFIED FOR BASE64) ---
 def create_wordpress_report_assets(
     ticker,
     actual_data,
@@ -829,75 +873,91 @@ def create_wordpress_report_assets(
     historical_data,
     fundamentals,
     ts,
-    aggregation=None,
+    aggregation=None, # No longer used
     app_root=None,
     plot_period_years=3
 ):
     global custom_style
-    print(f"[WP Assets] Starting generation for {ticker} using Matplotlib...")
+    print(f"[WP Assets] Starting generation for {ticker} with Base64 embedding...")
 
+    # No longer need to save files, so static_dir is only needed for _prepare_report_data if it writes temp files
     static_dir = os.path.join(app_root, 'static') if app_root else 'static'
-    try:
-        os.makedirs(static_dir, exist_ok=True)
-        if not os.access(static_dir, os.W_OK):
-             raise OSError(f"No write permission for directory: {static_dir}")
-        print(f"[WP Assets] Static directory for images: {static_dir}")
-    except OSError as e:
-         print(f"[WP Assets] ERROR creating or accessing static directory '{static_dir}': {e}")
-         return f"<h2>Error: Cannot access output directory '{static_dir}'</h2><p>{e}</p>", {}
+    # os.makedirs(static_dir, exist_ok=True) # Not strictly needed if not saving images
 
-    chart_image_paths = {} # ABSOLUTE paths
+    # --- Store Base64 strings instead of paths ---
+    chart_image_base64 = {}
 
     try:
         rdata = _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fundamentals, plot_period_years)
         hist_data_for_images = rdata['historical_data'].copy()
 
-        # --- (Image configs and generation loop unchanged) ---
+        # Define image configurations (same as before)
         image_configs = [
-            ('forecast', plot_forecast_mpl, f"{ticker}_forecast_{ts}.png", rdata['detailed_ta_data'], rdata),
-            ('historical_price_volume', plot_historical_mpl, f"{ticker}_hist_price_vol_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()),
-            ('bollinger_bands', plot_bollinger_mpl, f"{ticker}_bollinger_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()),
-            ('rsi', plot_rsi_mpl, f"{ticker}_rsi_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()),
-            ('macd_lines', plot_macd_lines_mpl, f"{ticker}_macd_lines_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy()),
-            ('macd_histogram', plot_macd_hist_mpl, f"{ticker}_macd_hist_{ts}.png", rdata['detailed_ta_data'], hist_data_for_images.copy())
+            ('forecast', plot_forecast_mpl, rdata), # Pass rdata for forecast plot
+            ('historical_price_volume', plot_historical_mpl, hist_data_for_images.copy()),
+            ('bollinger_bands', plot_bollinger_mpl, hist_data_for_images.copy()),
+            ('rsi', plot_rsi_mpl, hist_data_for_images.copy()),
+            ('macd_lines', plot_macd_lines_mpl, hist_data_for_images.copy()),
+            ('macd_histogram', plot_macd_hist_mpl, hist_data_for_images.copy())
         ]
-        print("[WP Assets] Generating and saving Matplotlib charts...")
-        chart_conclusions = {}
-        for chart_key, mpl_func, filename, conclusion_data, data_arg in image_configs:
-            img_path = os.path.join(static_dir, filename)
+
+        print("[WP Assets] Generating and encoding Matplotlib charts...")
+        chart_conclusions = {} # Store conclusions separately
+        for config_item in image_configs:
+            # Unpack configuration
+            chart_key = config_item[0]
+            mpl_func = config_item[1]
+            data_arg = config_item[2]
+
             print(f"  Generating {chart_key}...")
             if mpl_func is None: continue
+
             mpl_fig = None
             try:
                 print(f"    Calling function: {mpl_func.__name__}")
-                if chart_key == 'forecast': mpl_fig = mpl_func(data_arg, ticker)
-                else: mpl_fig = mpl_func(data_arg, ticker, plot_period_years=plot_period_years)
+                # Call the correct plotting function with appropriate arguments
+                if chart_key == 'forecast':
+                    mpl_fig = mpl_func(data_arg, ticker) # Forecast function takes rdata dict
+                else:
+                    mpl_fig = mpl_func(data_arg, ticker, plot_period_years=plot_period_years) # Others take df
+
                 if mpl_fig is None:
                     print(f"    FAILED (Plot Generation): Function '{mpl_func.__name__}' returned None for '{chart_key}'.")
                     continue
-                print(f"    Attempting to save figure to: {filename}")
-                mpl_fig.savefig(img_path, bbox_inches='tight', dpi=100)
-                plt.close(mpl_fig)
-                print(f"    Successfully saved: {filename}")
-                chart_image_paths[chart_key] = img_path
-                print(f"    Stored path for '{chart_key}'.")
-                # Store conclusions
+
+                # --- Convert figure to Base64 ---
+                print(f"    Encoding {chart_key} to Base64...")
+                base64_str = get_mpl_base64(mpl_fig) # Use the helper function
+                # mpl_fig is closed inside get_mpl_base64
+
+                if base64_str:
+                    chart_image_base64[chart_key] = base64_str
+                    print(f"    Successfully encoded '{chart_key}'.")
+                else:
+                    print(f"    FAILED (Base64 Encoding) for '{chart_key}'.")
+                    chart_image_base64[chart_key] = None # Store None on failure
+
+                # Store conclusions (using rdata['detailed_ta_data'])
+                conclusion_data = rdata['detailed_ta_data']
                 if chart_key == 'bollinger_bands' and conclusion_data:
                      chart_conclusions[chart_key] = get_bb_conclusion(conclusion_data.get('Current_Price'), conclusion_data.get('BB_Upper'), conclusion_data.get('BB_Lower'), conclusion_data.get('BB_Middle'))
                 elif chart_key == 'rsi' and conclusion_data:
                      rsi_val = conclusion_data.get('RSI_14')
                      chart_conclusions[chart_key] = get_rsi_conclusion(rsi_val)
-                elif chart_key == 'macd_histogram' and conclusion_data:
+                elif chart_key == 'macd_histogram' and conclusion_data: # MACD conclusions stored once
                      chart_conclusions['macd'] = get_macd_conclusion(conclusion_data.get('MACD_Line'), conclusion_data.get('MACD_Signal'), conclusion_data.get('MACD_Hist'), conclusion_data.get('MACD_Hist_Prev'))
+
             except Exception as e:
-                print(f"    FAILED ({'Saving' if mpl_fig else 'Generation'}) for '{chart_key}': {e}")
+                print(f"    FAILED (Generation/Encoding) for '{chart_key}': {e}")
                 import traceback
                 traceback.print_exc()
-                if mpl_fig is not None: plt.close(mpl_fig)
+                if mpl_fig is not None and not mpl_fig.canvas is None: # Check if fig exists and wasn't closed
+                     plt.close(mpl_fig)
+                chart_image_base64[chart_key] = None # Store None on failure
 
-        # --- Generate HTML Components ---
+
+        # --- Generate HTML Components (Same as before) ---
         print("[WP Assets] Generating text/table HTML components...")
-        # --- (Component generation calls unchanged, but taxes_html is no longer generated/needed) ---
         intro_html = generate_introduction_html(ticker, rdata)
         metrics_summary_html = generate_metrics_summary_html(ticker, rdata)
         detailed_forecast_table_html = generate_detailed_forecast_table_html(ticker, rdata)
@@ -908,7 +968,6 @@ def create_wordpress_report_assets(
         financial_health_html = generate_financial_health_html(ticker, rdata)
         financial_efficiency_html = generate_financial_efficiency_html(ticker, rdata)
         profitability_growth_html = generate_profitability_growth_html(ticker, rdata)
-        # taxes_html = generate_taxes_html(ticker, rdata) # <-- Removed
         dividends_shareholder_returns_html = generate_dividends_shareholder_returns_html(ticker, rdata)
         technical_analysis_summary_html = generate_technical_analysis_summary_html(ticker, rdata)
         stock_price_statistics_html = generate_stock_price_statistics_html(ticker, rdata)
@@ -918,18 +977,27 @@ def create_wordpress_report_assets(
         recent_news_html = generate_recent_news_html(ticker, rdata)
         conclusion_outlook_html = generate_conclusion_outlook_html(ticker, rdata)
         faq_html = generate_faq_html(ticker, rdata)
-        report_info_disclaimer_html = generate_report_info_disclaimer_html(datetime.now(pytz.utc))
 
-        # --- Assemble Report Body Content (Taxes Section Removed from list) ---
-        print("[WP Assets] Assembling report body HTML...")
+        # --- Assemble Report Body Content using Base64 Images ---
+        print("[WP Assets] Assembling report body HTML with embedded images...")
         report_body_content = ""
+        # Helper to generate image tag or fallback
+        def get_img_tag(key, alt_text):
+            base64_data = chart_image_base64.get(key)
+            if base64_data:
+                # Use 'embedded-chart-image' class for styling
+                return f'<img src="{base64_data}" alt="{alt_text}" class="embedded-chart-image">'
+            else:
+                return f"<p><i>{alt_text} failed to generate.</i></p>"
+
+        # --- Define sections using Base64 images ---
         html_sections = [
             ("Introduction and Overview", intro_html, "introduction-overview"),
             ("Key Metrics and Forecast Summary", metrics_summary_html, "key-metrics-forecast"),
             ("Price Forecast Chart",
-             (f"<img src='/static/{os.path.basename(chart_image_paths['forecast'])}' alt='{ticker} Price Forecast Chart' class='static-chart-image'>" if 'forecast' in chart_image_paths else "<p><i>Price Forecast chart failed to generate.</i></p>") +
+             get_img_tag('forecast', f'{ticker} Price Forecast Chart') +
              "<div class='narrative'><p>Recent actual average prices vs. forecasted price range (Low, Average, High).</p></div>",
-             "forecast-chart-image"),
+             "forecast-chart-embedded"),
             ("Detailed Forecast Table", detailed_forecast_table_html, "detailed-forecast-table"),
             ("Company Profile", company_profile_html, "company-profile"),
             ("Total Valuation", total_valuation_html, "total-valuation"),
@@ -938,24 +1006,23 @@ def create_wordpress_report_assets(
             ("Financial Health", financial_health_html, "financial-health"),
             ("Financial Efficiency", financial_efficiency_html, "financial-efficiency"),
             ("Profitability and Growth", profitability_growth_html, "profitability-growth"),
-            # ("Taxes", taxes_html, "taxes"), # <-- REMOVED THIS LINE
             ("Dividends and Shareholder Returns", dividends_shareholder_returns_html, "dividends-shareholder-returns"),
             ("Technical Analysis", technical_analysis_summary_html, "technical-analysis-summary"),
             ("Bollinger Bands Analysis",
-             (f"<img src='/static/{os.path.basename(chart_image_paths['bollinger_bands'])}' alt='{ticker} Bollinger Bands Chart' class='static-chart-image'>" if 'bollinger_bands' in chart_image_paths else "<p><i>Bollinger Bands chart failed to generate.</i></p>") +
+             get_img_tag('bollinger_bands', f'{ticker} Bollinger Bands Chart') +
              f"<div class='indicator-conclusion'>{chart_conclusions.get('bollinger_bands', 'Bollinger Bands conclusion not available.')}</div>",
              "tech-analysis-bb"),
             ("RSI Analysis",
-             (f"<img src='/static/{os.path.basename(chart_image_paths['rsi'])}' alt='{ticker} RSI Chart' class='static-chart-image'>" if 'rsi' in chart_image_paths else "<p><i>RSI chart failed to generate.</i></p>") +
+             get_img_tag('rsi', f'{ticker} RSI Chart') +
              f"<div class='indicator-conclusion'>{chart_conclusions.get('rsi', 'RSI conclusion not available.')}</div>",
              "tech-analysis-rsi"),
             ("MACD Analysis",
-             (f"<img src='/static/{os.path.basename(chart_image_paths['macd_lines'])}' alt='{ticker} MACD Lines Chart' class='static-chart-image'>" if 'macd_lines' in chart_image_paths else "<p><i>MACD Lines chart failed to generate.</i></p>") +
-             (f"<img src='/static/{os.path.basename(chart_image_paths['macd_histogram'])}' alt='{ticker} MACD Histogram Chart' class='static-chart-image'>" if 'macd_histogram' in chart_image_paths else "<p><i>MACD Histogram chart failed to generate.</i></p>") +
+             get_img_tag('macd_lines', f'{ticker} MACD Lines Chart') +
+             get_img_tag('macd_histogram', f'{ticker} MACD Histogram Chart') +
              f"<div class='indicator-conclusion'>{chart_conclusions.get('macd', 'MACD conclusion not available.')}</div>",
              "tech-analysis-macd"),
             ("Historical Price & Volume",
-             (f"<img src='/static/{os.path.basename(chart_image_paths['historical_price_volume'])}' alt='{ticker} Historical Price Chart' class='static-chart-image'>" if 'historical_price_volume' in chart_image_paths else "<p><i>Historical Price chart failed to generate.</i></p>") +
+             get_img_tag('historical_price_volume', f'{ticker} Historical Price Chart') +
              "<div class='narrative'><p>Historical closing price and volume. Range typically shows last 3 years.</p></div>",
              "historical-price-volume"),
             ("Stock Price Statistics", stock_price_statistics_html, "stock-price-statistics"),
@@ -964,13 +1031,13 @@ def create_wordpress_report_assets(
             ("Analyst Insights and Consensus", analyst_insights_html, "analyst-insights"),
             ("Recent News and Developments", recent_news_html, "recent-news"),
             ("Conclusion and Outlook", conclusion_outlook_html, "conclusion-outlook"),
-            ("Frequently Asked Questions", faq_html, "frequently-asked-questions"),
-            ("Report Information and Disclaimer", report_info_disclaimer_html, "report-information-disclaimer")
+            ("Frequently Asked Questions", faq_html, "frequently-asked-questions")
         ]
         # --- (Loop to build report body remains the same) ---
         for item in html_sections:
             title, html_content = item[0], item[1]
             section_class = item[2] if len(item) > 2 else title.lower().replace(" ", "-").replace("&", "and")
+            # Check if content exists (handles None from get_img_tag and empty sections)
             has_content = bool(html_content and str(html_content).strip() and not str(html_content).startswith(("<p>No data", "<p><i>")))
             if has_content:
                 report_body_content += f'<div class="section {section_class}">\n  <h2>{title}</h2>\n'
@@ -978,17 +1045,15 @@ def create_wordpress_report_assets(
                 report_body_content += f'</div>\n'
             else:
                 print(f"[WP Assets] Skipping empty or failed section: {title}")
-        # --- End loop ---
+
 
         # --- Assemble Final HTML FRAGMENT (Style + Body Content) ---
+        # Include the CSS within the fragment for easier pasting into WP HTML block
         final_html_fragment = f"{custom_style}\n<div class=\"report-container\">\n{report_body_content}\n</div>"
 
-        print(f"[WP Assets] Generation complete for {ticker}.")
-        image_urls = {key: f"/static/{os.path.basename(path)}" for key, path in chart_image_paths.items()}
-        print(f"[WP Assets] Generated URLs: {image_urls}")
-
-        # --- Return the HTML FRAGMENT and the URLs ---
-        return final_html_fragment, image_urls
+        print(f"[WP Assets] Generation complete for {ticker} with embedded images.")
+        # --- No need to return image_urls, only the HTML fragment ---
+        return final_html_fragment, {} # Return empty dict for compatibility
 
     except ValueError as ve:
         print(f"[WP Assets] Value Error during report generation for {ticker}: {ve}")
@@ -998,4 +1063,3 @@ def create_wordpress_report_assets(
         import traceback
         traceback.print_exc()
         return f"<h2>Unexpected Error Generating Report for {ticker}</h2><p>{e}</p>", {}
-
