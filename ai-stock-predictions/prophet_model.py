@@ -67,8 +67,8 @@ def train_prophet_model(data, ticker='STOCK', forecast_horizon='1y', timestamp=N
         }
     }
     params = ticker_params.get(ticker, {
-        'cap_multiplier': 3.0,
-        'changepoint_prior_scale': 0.09,
+        'cap_multiplier': 2.0,
+        'changepoint_prior_scale': 0.08,
         'seasonality_mode': 'multiplicative'
     })
     cap_multiplier = params['cap_multiplier']

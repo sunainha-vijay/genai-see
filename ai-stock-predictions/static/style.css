@@ -1,45 +1,65 @@
 /* static/style.css */
+
+/* --- Variables (Merging :root from both files) --- */
 :root {
-    --primary: #1a2b47;
+    /* Primary colors from index.html */
+    --primary: #10ac84;
     --secondary: #2e86de;
-    --accent: #10ac84;
-    --light: #f5f6fa;
-    --dark: #2c3e50;
+    --dark: #2d3436; /* Used for header/footer */
+    --light: #f5f6fa; /* Main background */
+    /* Status colors from index.html */
     --danger: #e74c3c;
-    --success: #2ecc71;
+    --success: #27ae60;
+    --warning: #f39c12;
+    --info: #3498db;
+    /* Font from index.html */
+    --font-main: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    /* Accent color from old style.css, maybe useful */
+    --accent-old: #1a2b47; /* Renamed to avoid clash */
 }
 
+/* --- Global Resets & Base Styles --- */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+html {
+    height: 100%; /* For sticky footer */
+    scroll-behavior: smooth; /* For anchor link scrolling */
 }
 
 body {
-    background-color: #f8f9fc;
-    color: var(--dark);
-    line-height: 1.5;
-    font-size: 15px;
-    -webkit-text-size-adjust: 100%; /* Prevent iOS font inflation */
-    text-size-adjust: 100%; /* Standard property */
-    overflow-x: hidden; /* Prevent horizontal scroll on body */
-}
-
-header {
-    background-color: var(--primary);
-    color: white;
-    padding: 0.8rem 0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    font-family: var(--font-main);
+    line-height: 1.6;
+    color: #333; /* Default text color from index.html */
+    background-color: var(--light); /* Background from index.html */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh; /* For sticky footer */
+    font-size: 15px; /* Base font size from old style.css */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
 .container {
     width: 90%;
-    max-width: 1180px;
+    max-width: 1200px; /* Max width from index.html */
     margin: 0 auto;
+    padding: 0 15px; /* Padding from index.html */
+}
+
+/* --- Header Styles (Based on index.html) --- */
+header {
+    background-color: var(--dark); /* Header background from index.html */
+    padding: 1rem 0; /* Padding from index.html */
+    position: sticky;
+    top: 0;
+    z-index: 1000; /* High z-index */
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1); /* Shadow from index.html */
+    color: #fff; /* Default text color for header */
 }
 
 nav {
@@ -49,23 +69,23 @@ nav {
 }
 
 .logo {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: white;
-    text-decoration: none;
     display: flex;
     align-items: center;
+    font-size: 1.5rem; /* Size from index.html */
+    font-weight: 700;
+    color: #fff;
+    text-decoration: none;
 }
 
 .logo span {
-    color: var(--secondary);
+    color: var(--primary); /* Accent color for span from index.html */
 }
 
 .logo-icon {
-    margin-right: 8px;
-    display: flex;
+    margin-right: 0.5rem; /* Spacing from index.html */
+    color: var(--primary); /* Icon color */
+    display: flex; /* Ensure icon aligns */
     align-items: center;
-    color: var(--accent);
 }
 
 .nav-links {
@@ -74,513 +94,288 @@ nav {
 }
 
 .nav-links li {
-    margin-left: 1.8rem;
+    margin-left: 1.5rem; /* Spacing from index.html */
 }
 
 .nav-links a {
-    color: white;
+    color: #fff;
     text-decoration: none;
     font-weight: 500;
-    transition: color 0.3s;
-    font-size: 0.95rem;
+    transition: color 0.3s ease;
+    display: inline-flex; /* Align icon and text */
+    align-items: center;
+    gap: 0.4rem; /* Space between icon and text */
+    font-size: 0.95rem; /* Font size from old style.css */
 }
 
 .nav-links a:hover {
-    color: var(--secondary);
+    color: var(--primary); /* Hover color from index.html */
 }
 
+/* --- Main Content Area --- */
+.main-content {
+    flex-grow: 1; /* Ensures it pushes footer down */
+}
+
+/* --- Buttons (Merging styles) --- */
 .btn {
-    padding: 0.4rem 1.2rem;
+    padding: 0.6rem 1.2rem; /* Base padding */
     border: none;
     border-radius: 4px;
-    font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s;
-    text-decoration: none;
-    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    display: inline-flex; /* For icon alignment */
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap; /* Prevent text wrap */
+    text-decoration: none; /* Remove underline if used on <a> tags */
+    font-size: 0.95rem; /* Consistent font size */
+}
+.btn i, .btn .spinner {
+    margin-right: 8px; /* Space between icon/spinner and text */
 }
 
 .btn-primary {
-    background-color: var(--secondary);
+    background-color: var(--primary); /* Primary button color */
+    color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: #0e9b76; /* Darker primary on hover */
+    transform: translateY(-2px); /* Slight lift effect */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Add subtle shadow on hover */
+}
+
+/* Secondary button style (Example) */
+.btn-secondary {
+    background-color: #6c757d; /* Grey color */
     color: white;
 }
-
-.btn-primary:hover {
-    background-color: #1c73c5;
+.btn-secondary:hover:not(:disabled) {
+    background-color: #5a6268;
 }
 
-/* Button disabled state */
+
 .btn:disabled {
-    background-color: #adb5bd;
-    color: #6c757d;
+    background-color: #95a5a6; /* Disabled style from index.html */
+    color: #e9ecef;
     cursor: not-allowed;
     opacity: 0.7;
+    transform: none; /* Disable hover transform */
+    box-shadow: none; /* Disable hover shadow */
 }
 
-
-.hero {
-    background: linear-gradient(120deg, var(--primary) 0%, #304769 100%);
-    padding: 4rem 0;
-    color: white;
-    position: relative;
-    overflow: hidden;
+/* Spinner inside buttons */
+.btn .spinner {
+    width: 18px; /* Slightly smaller spinner */
+    height: 18px;
+    border-width: 3px;
+    margin: 0 8px 0 0; /* Keep spacing */
+    border-left-color: #fff; /* White spinner track */
+    display: inline-block;
+    vertical-align: middle;
+    animation: spin 1s linear infinite; /* Use spin animation */
 }
 
-.hero::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath fill='%23ffffff' fill-opacity='0.05' d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z'%3E%3C/path%3E%3C/svg%3E");
-    z-index: 0;
-}
-
-.hero-content {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.hero-text {
-    flex: 1;
-    max-width: 580px;
-}
-
-.hero-text h1 {
-    font-size: 2.8rem;
-    margin-bottom: 1.2rem;
-    line-height: 1.2;
-}
-
-.hero-text p {
-    font-size: 1.1rem;
-    margin-bottom: 1.8rem;
-    opacity: 0.9;
-}
-
-/* Style for the ticker input form group */
-.ticker-form {
-    display: flex;
-    flex-wrap: wrap; /* Allows wrapping (important for the small tag) */
-    align-items: flex-start; /* Align items to top by default */
-    gap: 10px; /* Space between elements */
-}
-
-.ticker-form input[type="text"] {
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 1rem;
-    flex-grow: 1; /* Allow input to take available space */
-    min-width: 150px; /* Ensure a minimum usable width */
-    
-}
-
-.ticker-form small {
-    width: 100%; /* Make small text take full width */
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.85rem;
-    margin-top: 5px; /* Space above small text */
-    order: 3; /* Ensures the small tag appears after input/button in the flex flow */
-    flex-basis: 100%; /* Explicitly make it take the full line */
-}
-
-.ticker-form button {
-    margin-left: 0;
-    margin-top: 0;
-    flex-shrink: 0; /* Prevent button from shrinking */
- 
-}
-
-
-.hero-chart {
-    flex: 1;
-    max-width: 480px;
-    margin-left: 2rem;
-    background-color: rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    padding: 1.2rem;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-
-.features {
-    padding: 4rem 0;
-}
-
+/* --- Generic Section Styling (from index.html) --- */
 .section-title {
     text-align: center;
-    margin-bottom: 2.5rem;
+    margin-bottom: 3rem; /* Consistent bottom margin */
 }
-
 .section-title h2 {
-    font-size: 2.2rem;
-    color: var(--primary);
-    margin-bottom: 0.8rem;
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: var(--dark); /* Use dark color for titles */
+    position: relative;
+    display: inline-block; /* For underline positioning */
 }
-
+.section-title h2::after { /* Underline effect */
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3px;
+    background-color: var(--primary);
+}
 .section-title p {
     font-size: 1.1rem;
-    color: var(--dark);
-    max-width: 650px;
+    color: #666; /* Subtitle color */
+    max-width: 650px; /* Limit width for readability */
     margin: 0 auto;
-    opacity: 0.8;
-}
-
-.feature-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.8rem;
-}
-
-.feature-card {
-    background-color: white;
-    border-radius: 8px;
-    padding: 1.8rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.feature-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-}
-
-.feature-icon {
-    font-size: 2.2rem;
-    color: var(--secondary);
-    margin-bottom: 1.2rem;
-    display: flex;
-}
-
-.feature-card h3 {
-    font-size: 1.4rem;
-    margin-bottom: 0.8rem;
-    color: var(--primary);
-}
-
-.trending-stocks {
-    padding: 4rem 0;
-    background-color: #f1f5f9;
-}
-
-.stock-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1.2rem;
-    margin-top: 1.8rem;
-}
-
-.stock-card {
-    background-color: white;
-    border-radius: 8px;
-    padding: 1.2rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.stock-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.8rem;
-}
-
-.stock-name {
-    font-weight: 600;
-    color: var(--primary);
-    font-size: 0.95rem;
-}
-
-.stock-symbol {
-    color: var(--secondary);
-    font-weight: 700;
-    font-size: 0.9rem;
-}
-
-.stock-price {
-    font-size: 1.4rem;
-    font-weight: 700;
-    margin-bottom: 0.4rem;
-}
-
-.stock-change {
-    display: flex;
-    align-items: center;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-.up {
-    color: var(--success);
-}
-
-.down {
-    color: var(--danger);
-}
-
-.cta {
-    padding: 4rem 0;
-    background: linear-gradient(120deg, var(--secondary) 0%, var(--primary) 100%);
-    color: white;
-    text-align: center;
-}
-
-.cta h2 {
-    font-size: 2.2rem;
-    margin-bottom: 1.2rem;
-}
-
-.cta p {
-    font-size: 1.1rem;
-    max-width: 650px;
-    margin: 0 auto 1.8rem;
-    opacity: 0.9;
-}
-
-.btn-cta {
-    background-color: white;
-    color: var(--primary);
-    padding: 0.6rem 1.8rem;
-    font-size: 1rem;
-}
-
-.btn-cta:hover {
-    background-color: var(--light);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    opacity: 0.9; /* Slightly transparent */
 }
 
 
+/* --- Footer Styles (Based on index.html) --- */
 footer {
-    background-color: var(--primary);
-    color: white;
-    padding: 2.5rem 0;
-    margin-top: auto; /* Push footer to bottom */
+    background-color: var(--dark); /* Match header */
+    color: #bbb; /* Lighter text color for footer */
+    padding: 4rem 0 1.5rem 0; /* Top padding from index.html, reduced bottom */
+    margin-top: auto; /* Pushes footer to bottom */
 }
 
 .footer-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1.8rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Responsive columns */
+    gap: 2.5rem; /* Increased gap */
+    margin-bottom: 3rem; /* Spacing before copyright */
 }
 
-.footer-logo {
-    font-size: 1.4rem;
-    font-weight: 700;
-    margin-bottom: 0.8rem;
+.footer-about {
+    grid-column: span 1; /* Default span */
+}
+@media (min-width: 768px) {
+    .footer-about {
+        grid-column: span 2; /* Span 2 columns on wider screens */
+        max-width: 450px; /* Limit width */
+    }
+}
+
+
+.footer-logo { /* Logo styling consistent with header */
     display: flex;
     align-items: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: #fff; /* White base color */
 }
 
 .footer-logo span {
-    color: var(--secondary);
+    color: var(--primary); /* Primary accent color */
 }
 
 .footer-about p {
-    font-size: 0.9rem;
+    font-size: 0.9rem; /* Slightly smaller text */
     opacity: 0.8;
-    line-height: 1.6;
+    line-height: 1.7; /* Improved line spacing */
+}
+/* Optional: Specific style for disclaimer text */
+.footer-about p i {
+    opacity: 0.7;
+    font-size: 0.85rem;
 }
 
 
 .footer-links h4 {
-    font-size: 1.1rem;
-    margin-bottom: 1.2rem;
+    font-size: 1.1rem; /* Adjusted size */
+    margin-bottom: 1.5rem;
     position: relative;
-    padding-bottom: 0.4rem;
+    padding-bottom: 0.5rem;
+    color: #fff; /* White headings */
 }
 
-.footer-links h4::after {
-    content: "";
+.footer-links h4::after { /* Underline for headings */
+    content: '';
     position: absolute;
     bottom: 0;
     left: 0;
     width: 40px;
     height: 2px;
-    background-color: var(--secondary);
+    background-color: var(--primary);
 }
 
 .footer-links ul {
     list-style: none;
+    padding: 0;
 }
 
 .footer-links li {
-    margin-bottom: 0.7rem;
+    margin-bottom: 0.8rem; /* Spacing between links */
 }
 
 .footer-links a {
-    color: rgba(255, 255, 255, 0.8);
+    color: #bbb; /* Link color */
     text-decoration: none;
-    transition: color 0.3s;
+    transition: color 0.3s ease;
     font-size: 0.9rem;
 }
 
 .footer-links a:hover {
-    color: var(--secondary);
+    color: var(--primary); /* Hover color */
 }
 
 .copyright {
     text-align: center;
-    padding-top: 1.8rem;
-    margin-top: 1.8rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.85rem;
+    padding-top: 1.5rem; /* Reduced padding */
+    margin-top: 2rem; /* Adjusted margin */
+    border-top: 1px solid rgba(255, 255, 255, 0.1); /* Lighter border */
+    color: rgba(255, 255, 255, 0.7); /* Slightly brighter copyright text */
+    font-size: 0.9rem;
 }
 
-/* --- START: Plotly Graph & Modebar Specific Styles (if used outside report) --- */
 
-/* Ensure graph containers take full width and have space for modebar */
-.chart-container,
-.indicator-chart-container,
-.plotly-graph-div {
-    width: 100% !important;
-    height: auto !important;
-    margin: auto;
-    position: relative; /* Needed for modebar positioning */
-    padding-top: 35px; /* Make space for modebar above */
-    min-height: 300px; /* Optional: Ensure minimum height */
+/* --- Animations (from index.html) --- */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
-/* Modebar Styling */
-.modebar {
-    position: absolute !important;
-    top: 0px !important; /* Position at the very top of the .plotly-graph-div */
-    left: 50% !important;
-    transform: translateX(-50%) !important; /* Center horizontally */
-    width: auto !important;
-    max-width: 98%; /* Allow it to be almost full width */
-    display: flex !important;
-    flex-wrap: wrap !important; /* Allow buttons to wrap */
-    justify-content: center !important; /* Center buttons */
-    background-color: rgba(245, 245, 245, 0.9) !important; /* Slightly transparent background */
-    border: 1px solid #ccc !important;
-    border-radius: 4px !important;
-    padding: 3px 5px !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-    opacity: 1 !important; /* Always visible */
-    z-index: 1001 !important; /* High z-index */
-    transition: none !important;
+@keyframes spin-step { /* For progress indicator */
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
-.modebar-group {
-    display: flex !important;
-    flex-wrap: nowrap !important; /* Keep icons grouped */
-    align-items: center !important;
-    margin: 1px !important; /* Minimal margin */
-}
-.modebar-btn {
-    padding: 2px 4px !important; /* Small padding */
-    min-width: 24px !important; /* Adjust size */
-    height: 24px !important;
-    line-height: 20px !important;
-}
-.modebar-btn svg {
-    width: 14px !important;
-    height: 14px !important;
-    position: relative;
-    top: 1px; /* Fine-tune vertical alignment */
-}
-.modebar-btn path { fill: #333 !important; }
-.modebar-btn:hover, .modebar-btn--active { background-color: #ddd !important; }
-/* --- END: Plotly Graph & Modebar Specific Styles --- */
 
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+}
 
-/* --- START: Responsive Adjustments --- */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* --- Responsive Adjustments (incorporating rules from both files) --- */
 
 /* Tablets and Small Desktops */
 @media (max-width: 992px) {
     body { font-size: 14px; }
-    header { padding: 0.7rem 0; }
+    header { padding: 0.8rem 0; } /* Adjust header padding */
     .container { width: 95%; }
-    .hero { padding: 3rem 0; }
-    .hero-content { flex-direction: column; text-align: center; } /* Center align text */
-    .hero-text { max-width: 100%; } /* Allow text to take full width */
-    .hero-text h1 { font-size: 2.4rem; }
-    .hero-text p { font-size: 1rem; }
-    .ticker-form { justify-content: center; } /* Center form items */
-    .ticker-form input[type="text"] { max-width: 350px; }
-    .hero-chart { margin-left: 0; margin-top: 2.5rem; max-width: 80%; padding: 1rem; }
-    .features, .trending-stocks, .cta { padding: 3rem 0; }
-    .section-title h2 { font-size: 2rem; }
+    .section-title h2 { font-size: 2.2rem; } /* Adjust section titles */
     .section-title p { font-size: 1rem; }
-    .feature-card { padding: 1.5rem; text-align: center; } /* Center feature card content */
-    .feature-icon { justify-content: center; } /* Center icon */
-    .feature-card h3 { font-size: 1.3rem; }
-    .stock-card { padding: 1rem; }
-    .stock-price { font-size: 1.3rem; }
-    .cta h2 { font-size: 2rem; }
-    .cta p { font-size: 1rem; }
-    footer { padding: 2rem 0; }
+    /* Footer adjustments */
+    .footer-grid { gap: 2rem; }
+    .footer-links h4 { font-size: 1rem; }
 
-    /* Ensure tables scroll horizontally if needed */
-    .table-container {
-        overflow-x: auto;
-        display: block; /* Necessary for overflow-x on table */
-        white-space: nowrap; /* Keep table content on one line */
-        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-    }
+    /* Responsive styles from stock-analysis-homepage.html's inline styles */
+     /* Hero adjustments handled by stock-analysis-homepage inline styles */
+     /* Process steps centering handled by stock-analysis-homepage inline styles */
 }
 
 /* Mobile Devices */
 @media (max-width: 768px) {
-    body { font-size: 14px; }
-    .nav-links { display: none; } /* Consider adding a hamburger menu toggle */
+    /* Hide desktop nav links */
+    .nav-links { display: none; }
+    /* Add styles for a hamburger menu toggle here if implemented */
+
     .logo { font-size: 1.3rem; }
-    .hero-text h1 { font-size: 2rem; }
-    .ticker-form {
-        flex-direction: row; /* Change from column to row */
-        flex-wrap: wrap;     /* Ensure wrapping stays enabled */
-        align-items: center; /* Change from stretch to center */
-        gap: 8px;            /* Adjust gap if needed */
-        justify-content: flex-start; /* Align items to the start */
-    }
+    .section-title h2 { font-size: 2rem; }
+    .cta h2 { font-size: 2rem; }
 
-    .ticker-form input[type="text"] {
-         /* REMOVE the width: 100% and max-width: none rules */
-         min-width: 120px; /* Optional: Adjust minimum width */
-         /* Input already has flex-grow: 1 from base styles, which is good */
-    }
-
-    .ticker-form button {
-        /* REMOVE the width: 100% rule */
-        padding: 10px 12px; /* Optional: Adjust padding */
-        /* Button already has flex-shrink: 0 from base styles */
-    }
-    .hero-chart { max-width: 95%; margin-top: 2rem; }
-    .feature-grid { grid-template-columns: 1fr; gap: 1.5rem; } /* Stack features */
-    .stock-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; } /* Adjust stock grid */
-    .footer-grid { grid-template-columns: 1fr; text-align: center; } /* Stack footer */
-    .footer-about { margin-bottom: 1.5rem; }
-    .footer-links h4::after { left: 50%; transform: translateX(-50%); }
-    .section-title h2 { font-size: 1.8rem; }
-    .cta h2 { font-size: 1.8rem; }
-
-    /* Modebar adjustments for mobile */
-    .modebar { top: -28px !important; max-width: 100%; padding: 2px 3px; }
-    .modebar-btn { padding: 1px 3px; min-width: 20px; height: 20px; line-height: 16px; }
-    .modebar-btn svg { width: 13px; height: 13px; }
+    /* Footer stacking */
+    .footer-grid { grid-template-columns: 1fr; text-align: center; gap: 1.5rem; }
+    .footer-about { grid-column: span 1; max-width: none; margin: 0 auto 1.5rem auto; } /* Center about text */
+    .footer-links h4::after { left: 50%; transform: translateX(-50%); } /* Center underline */
+     /* Form and other mobile styles handled by stock-analysis-homepage inline styles */
 }
 
 /* Smaller Mobile Devices */
 @media (max-width: 480px) {
     body { font-size: 13px; }
-    .hero-text h1 { font-size: 1.8rem; }
-    .hero-text p { font-size: 0.9rem; }
-    .section-title h2 { font-size: 1.6rem; }
+    .section-title h2 { font-size: 1.8rem; }
     .section-title p { font-size: 0.9rem; }
-    .feature-card h3 { font-size: 1.2rem; }
-    .feature-card p { font-size: 0.85rem; }
-    .stock-grid { grid-template-columns: 1fr; } /* Stack stocks */
-    .stock-price { font-size: 1.2rem; }
-    .cta h2 { font-size: 1.6rem; }
+    .cta h2 { font-size: 1.8rem; }
     .cta p { font-size: 0.9rem; }
-    .btn { padding: 0.6rem 1.2rem; font-size: 0.9rem; } /* Slightly larger button padding */
-
-    /* Further modebar adjustments */
-    .modebar-btn { min-width: 18px; height: 18px; line-height: 14px; }
-    .modebar-btn svg { width: 11px; height: 11px; }
+    .btn { padding: 0.7rem 1.4rem; font-size: 0.9rem; } /* Ensure buttons are tappable */
+    .copyright { font-size: 0.85rem; }
+     /* Form stacking and other small mobile styles handled by stock-analysis-homepage inline styles */
 }
+
 /* --- END: Responsive Adjustments --- */
