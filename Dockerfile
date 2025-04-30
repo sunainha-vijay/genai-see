@@ -9,6 +9,8 @@ FROM python:3.11-slim-bullseye
 # Prevents Python from buffering stdout/stderr, making logs appear immediately
 ENV PYTHONUNBUFFERED=1
 # Set the port the application will run on inside the container
+# Note: Gunicorn's --bind doesn't directly use $PORT in CMD exec form easily,
+# so we'll use 8080 directly in CMD, matching EXPOSE.
 ENV PORT=8080
 # Set the working directory inside the container
 WORKDIR /app
@@ -21,20 +23,23 @@ COPY requirements.txt .
 # Install dependencies specified in requirements.txt
 # --no-cache-dir reduces image size by not storing the pip cache
 # --upgrade pip ensures the latest pip is used
+# Added space before && for clarity/safety
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # 4. Copy Application Code
 # Copy the rest of your application code into the container's working directory
+# This will create /app/ai-stock-predictions/, /app/app.py etc. if your structure is like that
 COPY . .
 
 # 5. Expose Port
 # Inform Docker that the container listens on the specified port at runtime
 EXPOSE 8080
 
-# 6. Define Start Command
-# Command to run your application using Gunicorn when the container starts
-# Binds Gunicorn to listen on all interfaces (0.0.0.0) on the specified port ($PORT, which is 8080)
-# 'app:app' means: look for the file 'app.py' and find the Flask object named 'app' within it.
-# Adjust the number of workers (-w) based on your instance resources if needed (e.g., -w 2 or -w 4 for more CPU)
-CMD [gunicorn --chdir ai-stock-predictions --timeout 120 --bind 0.0.0.0:8080 app:app]
+# 6. Define Start Command (Corrected)
+# Use the JSON array (exec) form for CMD.
+# Each argument is a separate string in the list.
+# --chdir changes the directory *before* Gunicorn looks for app:app
+# Ensure 'app:app' corresponds to your Flask app object 'app' in the file 'app.py'
+# located inside the 'ai-stock-predictions' directory relative to WORKDIR /app.
+CMD ["gunicorn", "--chdir", "/app/ai-stock-predictions", "--timeout", "120", "--bind", "0.0.0.0:8080", "app:app"]
