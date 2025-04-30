@@ -80,4 +80,5 @@ urllib3==2.3.0
 wcwidth==0.2.13
 Werkzeug==3.1.3
 widgetsnbextension==4.0.13
-yfinance==0.2.55
+yfinance==0.2.57
+psutil==7.0.0
