@@ -1,4 +1,5 @@
-# app.py (UPDATED with INCREASED time.sleep)
+# app.py (MODIFIED: Removed site_name requirement from /generate-wp-assets)
+
 from flask import Flask, render_template, request, send_from_directory, jsonify, url_for
 import os
 import time # Import the time module
@@ -19,8 +20,8 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.secret_key = os.urandom(24)
 os.makedirs(STATIC_FOLDER_PATH, exist_ok=True)
 
-# --- Rate Limiting Delay (ADJUSTED - Increased to 4 seconds) ---
-API_DELAY_SECONDS = 4.0
+# --- Rate Limiting Delay (Unchanged from your provided code) ---
+API_DELAY_SECONDS = 2.0
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
@@ -61,12 +62,13 @@ def generate_report():
     time.sleep(API_DELAY_SECONDS)
     # ---------------
 
-    if not request.is_json: # ... (rest of the function unchanged from previous correct versions)
+    if not request.is_json: # ... (rest of the function unchanged)
         print("Error: Request must be JSON")
         return jsonify({'status': 'error', 'message': 'Invalid request format. Expected JSON.'}), 400
     data = request.get_json(); ticker = data.get('ticker', '').strip().upper(); print(f"Received ticker: {ticker}")
     valid_ticker_pattern = r'^[A-Z0-9\^.-]+$'
-    site_name = data.get('site_name') # Get site name even if not used by run_pipeline yet
+    # Get site_name - still needed for the original pipeline logic branch
+    site_name = data.get('site_name', '').strip()
     print(f"Received site_name: {site_name}")
 
     if not ticker or not re.match(valid_ticker_pattern, ticker):
@@ -77,7 +79,8 @@ def generate_report():
         status_message = "error" # Default status
 
         # --- Conditional Logic based on site_name ---
-        if site_name == 'moneystockers':
+        # Check if site_name exists AND matches for the WP path
+        if site_name and site_name == 'moneystockers':
             print(f"Running WP pipeline for {ticker} (Site: {site_name}) with ts {timestamp}...")
             model, forecast, text_report_html, image_urls = run_wp_pipeline(ticker, timestamp, APP_ROOT) # Call WP pipeline
             if text_report_html and "Error Generating Report" not in text_report_html:
@@ -87,6 +90,7 @@ def generate_report():
                      with open(wp_report_path, 'w', encoding='utf-8') as f: f.write(text_report_html)
                      print(f"Saved WP HTML fragment to: {wp_report_filename}")
                      report_file_url = url_for('serve_static', filename=wp_report_filename, _external=False)
+                     # Still using report_display for WP assets temporarily, can be adjusted
                      viewer_url = url_for('show_report_page', ticker=ticker, url=report_file_url, _external=False)
                      status_message = 'success'
                  except Exception as save_err:
@@ -130,7 +134,7 @@ def generate_report():
          return jsonify({'status': 'error', 'message': f"An unexpected error occurred processing {ticker}."}), 500
 
 
-# --- Routes for WordPress Asset Generation (UPDATED with increased delay) ---
+# --- Routes for WordPress Asset Generation (MODIFIED) ---
 
 @app.route('/wp-admin-generator')
 def wp_generator_page():
@@ -146,6 +150,7 @@ def wp_generator_page():
 def generate_wp_assets():
     """
     Handles the asynchronous request to generate WordPress assets.
+    Site_name requirement removed. Returns HTML directly.
     Includes an increased delay to help prevent rate limiting.
     """
     start_time = time.time()
@@ -156,17 +161,34 @@ def generate_wp_assets():
     time.sleep(API_DELAY_SECONDS)
     # ---------------
 
-    if not request.is_json: # ... (rest of the function unchanged from previous correct versions)
+    if not request.is_json:
         print("Error: WP Asset Request must be JSON"); return jsonify({'status': 'error', 'message': 'Invalid request format. Expected JSON.'}), 400
-    data = request.get_json(); ticker = data.get('ticker', '').strip().upper(); site_name = data.get('site_name', '').strip()
-    print(f"Received WP ticker: {ticker}"); print(f"Received WP site name: {site_name}")
-    valid_ticker_pattern = r'^[A-Z0-9\^.-]+$'; error_message = ''
-    if not site_name: error_message = 'Target site name is missing.'
-    elif not ticker or not re.match(valid_ticker_pattern, ticker): error_message = 'Invalid ticker symbol format.'
-    if error_message: print(f"WP Validation Error: {error_message}"); return jsonify({'status': 'error', 'message': error_message}), 400
+
+    data = request.get_json()
+    ticker = data.get('ticker', '').strip().upper()
+    # site_name = data.get('site_name', '').strip() # REMOVED site_name retrieval
+    print(f"Received WP ticker: {ticker}")
+    # print(f"Received WP site name: {site_name}") # REMOVED site_name log
+
+    valid_ticker_pattern = r'^[A-Z0-9\^.-]+$'
+    error_message = ''
+
+    # --- Validation Block (Removed site_name check) ---
+    if not ticker or not re.match(valid_ticker_pattern, ticker):
+        error_message = 'Invalid ticker symbol format.'
+
+    # If any error message was set, return the error
+    if error_message:
+        print(f"WP Validation Error: {error_message}")
+        return jsonify({'status': 'error', 'message': error_message}), 400
+    # --- End Validation Block ---
+
     try:
-        timestamp = str(int(time.time())); print(f"Running WP pipeline for {ticker} (Site: {site_name}) with ts {timestamp}...")
-        pipeline_result = run_wp_pipeline(ticker, timestamp, APP_ROOT)
+        timestamp = str(int(time.time()))
+        # Pass site_name=None or remove it from the call if the pipeline doesn't need it
+        print(f"Running WP pipeline for {ticker} with ts {timestamp}...")
+        pipeline_result = run_wp_pipeline(ticker, timestamp, APP_ROOT) # Pass None for site_name if needed
+
         # Check return value type before unpacking
         if pipeline_result and isinstance(pipeline_result, tuple) and len(pipeline_result) >= 4:
             model_wp, forecast_wp, text_report_html, img_urls_wp = pipeline_result
@@ -175,11 +197,21 @@ def generate_wp_assets():
              print(f"Warning: WP pipeline for {ticker} returned unexpected result: {pipeline_result}")
 
         if text_report_html is not None and "Error Generating Report" not in text_report_html:
-            end_time = time.time(); duration = end_time - start_time; print(f"WP pipeline completed for {ticker} (Site: {site_name}) in {duration:.2f}s.")
-            print(f"Returning Chart Image URLs: {img_urls_wp}")
-            return jsonify({'status': 'success', 'ticker': ticker, 'site_name': site_name, 'report_html': text_report_html, 'chart_urls': img_urls_wp or {}, 'duration': f"{duration:.2f}"}) # Ensure chart_urls is dict
-        else: error_message = f"WP Asset HTML generation failed for {ticker}."; print(f"WP Pipeline Error: {error_message}"); return jsonify({'status': 'error', 'message': error_message}), 500
-    except Exception as e: print(f"Unexpected error in /generate-wp-assets for {ticker}: {e}"); traceback.print_exc(); error_message = f"Unexpected error for {ticker} (Site: {site_name})."; return jsonify({'status': 'error', 'message': error_message}), 500
+            end_time = time.time(); duration = end_time - start_time; print(f"WP pipeline completed for {ticker} in {duration:.2f}s.")
+            print(f"Returning Chart Image URLs: {img_urls_wp}") # Keep image URLs for potential use
+            # Ensure chart_urls is always a dictionary, even if empty
+            # Removed site_name from the response JSON
+            return jsonify({
+                'status': 'success',
+                'ticker': ticker,
+                'report_html': text_report_html, # HTML code is here
+                'chart_urls': img_urls_wp or {},
+                'duration': f"{duration:.2f}"
+            })
+        else:
+            error_message = f"WP Asset HTML generation failed for {ticker}."; print(f"WP Pipeline Error: {error_message}"); return jsonify({'status': 'error', 'message': error_message}), 500
+    except Exception as e:
+        print(f"Unexpected error in /generate-wp-assets for {ticker}: {e}"); traceback.print_exc(); error_message = f"Unexpected error processing {ticker}."; return jsonify({'status': 'error', 'message': error_message}), 500
 
 
 # --- Main execution (Unchanged) ---
