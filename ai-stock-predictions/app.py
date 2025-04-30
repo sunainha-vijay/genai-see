@@ -216,16 +216,7 @@ def generate_wp_assets():
 
 # --- Main execution (Unchanged) ---
 if __name__ == "__main__":
-    print(f"App Root: {APP_ROOT}")
-    print(f"Static Folder: {app.static_folder}")
-    print(f"Template Folder: {app.template_folder}")
-    # Check if template folder exists
-    if not os.path.isdir(app.template_folder):
-        print(f"CRITICAL ERROR: Template folder not found at {app.template_folder}")
-    # Check if static folder exists
-    if not os.path.isdir(app.static_folder):
-        print(f"CRITICAL ERROR: Static folder not found at {app.static_folder}")
-
-    print(f"Starting Flask server on http://0.0.0.0:5000")
-    # Recommended: Disable debug/reloader for deployed environments or stability testing
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True, use_reloader=False)
+    # Use PORT from environment if available, otherwise default to 5000 for local dev
+    port = int(os.environ.get("PORT", 5000))
+    print(f"Starting Flask server on http://0.0.0.0:{port}")
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True, use_reloader=False)
