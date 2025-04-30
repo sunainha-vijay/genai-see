@@ -37,4 +37,4 @@ EXPOSE 8080
 # Binds Gunicorn to listen on all interfaces (0.0.0.0) on the specified port ($PORT, which is 8080)
 # 'app:app' means: look for the file 'app.py' and find the Flask object named 'app' within it.
 # Adjust the number of workers (-w) based on your instance resources if needed (e.g., -w 2 or -w 4 for more CPU)
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--timeout", "120", "app:app"]
+CMD [gunicorn --chdir ai-stock-predictions --timeout 120 --bind 0.0.0.0:8080 app:app]
