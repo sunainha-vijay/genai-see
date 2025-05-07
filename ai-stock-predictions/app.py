@@ -21,7 +21,7 @@ app.secret_key = os.urandom(24)
 os.makedirs(STATIC_FOLDER_PATH, exist_ok=True)
 
 # --- Rate Limiting Delay (Unchanged from your provided code) ---
-API_DELAY_SECONDS = 2.0
+API_DELAY_SECONDS = 1.0
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):

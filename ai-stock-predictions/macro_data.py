@@ -6,6 +6,7 @@ import numpy as np
 import pandas_datareader as pdr
 from datetime import datetime
 import logging
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,8 +14,11 @@ logger = logging.getLogger(__name__)
 
 # Removed CACHE_DIR definition here
 
+
 # Define the cache file name (constant)
 CACHE_FILENAME = "macro_indicators.csv"
+
+load_dotenv()
 
 FRED_API_KEY = os.environ.get('FRED_API_KEY')
 

@@ -84,3 +84,5 @@ yfinance==0.2.58
 psutil==7.0.0
 cffi==1.17.1
 pycparser==2.22
+schedule==1.2.2
+dotenv==1.1.0
