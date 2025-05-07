@@ -121,7 +121,7 @@ def generate_introduction_html(ticker, rdata):
     )
 
     intro = (
-        f"<p>This report focuses on <strong>{company_name} ({ticker})</strong>, a major player in the {industry} industry within the {sector} sector. "
+        f"<p>If you are looking for {ticker} stock price prediction with detailed technical, fundamental, stock forecast analysis. you are at right place. Here, we have analyzed <strong>{company_name} ({ticker})</strong>, a major player in the {industry} industry within the {sector} sector. "
         # Use the specific date from rdata if available
         f"As of {rdata.get('last_date', datetime.now()):%B %d, %Y}, {ticker} trades at <strong>{current_price_fmt}</strong>, reflecting its current {dynamic_sentiment_text}. "
         f"The company holds a market capitalization of approximately <strong>{market_cap_fmt}</strong>.</p>"

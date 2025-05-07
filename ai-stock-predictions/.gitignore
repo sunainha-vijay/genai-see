@@ -9,7 +9,7 @@ __pycache__/
 .env
 *.env
 # ... rest of file
-
+/ai-stock-predictions/ai-stock-predictions/auto_publisher_state.pkl
 # Python virtual environment
 venv/
 */__pycache__/

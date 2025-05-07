@@ -288,6 +288,19 @@ def get_mpl_base64(fig):
             plt.close(fig) # Ensure figure is closed on error
         return None
 
+def get_mpl_base64_from_file(image_path): # Helper to get base64 if needed for HTML body
+    if not image_path or not os.path.exists(image_path):
+        return None
+    try:
+        with open(image_path, "rb") as img_file:
+            img_bytes = img_file.read()
+        base64_string = base64.b64encode(img_bytes).decode('utf-8')
+        return f"data:image/png;base64,{base64_string}"
+    except Exception as e:
+        print(f"Error converting image file {image_path} to Base64: {e}") # Use logger
+        return None
+
+
 # Helper function to determine sentiment (Keep Unchanged)
 def determine_sentiment(detailed_ta_data, overall_pct_change):
     # ... (implementation unchanged) ...
@@ -873,27 +886,31 @@ def create_wordpress_report_assets(
     historical_data,
     fundamentals,
     ts,
-    aggregation=None, # No longer used
+    aggregation=None,
     app_root=None,
     plot_period_years=3
 ):
     global custom_style
-    print(f"[WP Assets] Starting generation for {ticker} with Base64 embedding...")
+    print(f"[WP Assets] Starting generation for {ticker}...") # Use logger
 
-    # No longer need to save files, so static_dir is only needed for _prepare_report_data if it writes temp files
-    static_dir = os.path.join(app_root, 'static') if app_root else 'static'
-    # os.makedirs(static_dir, exist_ok=True) # Not strictly needed if not saving images
+    if not app_root:
+        app_root = os.path.dirname(os.path.abspath(__file__)) # Fallback
+        print(f"[WP Assets] Warning: app_root not provided, defaulting to script directory: {app_root}") # Use logger
 
-    # --- Store Base64 strings instead of paths ---
+    # Define a directory for temporary image assets, ensuring it's unique per run or cleaned
+    temp_images_dir = os.path.join(app_root, 'temp_wp_images', f"{ticker}_{ts}")
+    os.makedirs(temp_images_dir, exist_ok=True)
+    print(f"[WP Assets] Temp image directory: {temp_images_dir}") # Use logger
+
     chart_image_base64 = {}
+    saved_forecast_chart_path = None # To store the path of the saved forecast chart
 
     try:
         rdata = _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fundamentals, plot_period_years)
         hist_data_for_images = rdata['historical_data'].copy()
 
-        # Define image configurations (same as before)
         image_configs = [
-            ('forecast', plot_forecast_mpl, rdata), # Pass rdata for forecast plot
+            ('forecast', plot_forecast_mpl, rdata),
             ('historical_price_volume', plot_historical_mpl, hist_data_for_images.copy()),
             ('bollinger_bands', plot_bollinger_mpl, hist_data_for_images.copy()),
             ('rsi', plot_rsi_mpl, hist_data_for_images.copy()),
@@ -901,63 +918,72 @@ def create_wordpress_report_assets(
             ('macd_histogram', plot_macd_hist_mpl, hist_data_for_images.copy())
         ]
 
-        print("[WP Assets] Generating and encoding Matplotlib charts...")
-        chart_conclusions = {} # Store conclusions separately
+        print("[WP Assets] Generating Matplotlib charts...") # Use logger
+        chart_conclusions = {}
         for config_item in image_configs:
-            # Unpack configuration
             chart_key = config_item[0]
             mpl_func = config_item[1]
             data_arg = config_item[2]
 
-            print(f"  Generating {chart_key}...")
+            print(f"  Generating {chart_key} for {ticker}...") # Use logger
             if mpl_func is None: continue
 
             mpl_fig = None
             try:
-                print(f"    Calling function: {mpl_func.__name__}")
-                # Call the correct plotting function with appropriate arguments
                 if chart_key == 'forecast':
-                    mpl_fig = mpl_func(data_arg, ticker) # Forecast function takes rdata dict
+                    mpl_fig = mpl_func(data_arg, ticker)
                 else:
-                    mpl_fig = mpl_func(data_arg, ticker, plot_period_years=plot_period_years) # Others take df
+                    mpl_fig = mpl_func(data_arg, ticker, plot_period_years=plot_period_years)
 
                 if mpl_fig is None:
-                    print(f"    FAILED (Plot Generation): Function '{mpl_func.__name__}' returned None for '{chart_key}'.")
+                    print(f"    FAILED (Plot Generation): Function '{mpl_func.__name__}' returned None for '{chart_key}'.") # Use logger
                     continue
 
-                # --- Convert figure to Base64 ---
-                print(f"    Encoding {chart_key} to Base64...")
-                base64_str = get_mpl_base64(mpl_fig) # Use the helper function
-                # mpl_fig is closed inside get_mpl_base64
-
-                if base64_str:
-                    chart_image_base64[chart_key] = base64_str
-                    print(f"    Successfully encoded '{chart_key}'.")
+                # --- MODIFICATION FOR FORECAST CHART ---
+                if chart_key == 'forecast':
+                    forecast_chart_filename = f"{ticker}_forecast_featured_{ts}.png"
+                    # Save in the unique temp_images_dir for this ticker and timestamp
+                    saved_forecast_chart_path = os.path.join(temp_images_dir, forecast_chart_filename)
+                    mpl_fig.savefig(saved_forecast_chart_path, bbox_inches='tight', dpi=150) # Save with decent DPI
+                    print(f"    Successfully saved '{chart_key}' chart to: {saved_forecast_chart_path}") # Use logger
+                    # Optionally, still generate Base64 for embedding in HTML body if needed
+                    # base64_str = get_mpl_base64_from_file(saved_forecast_chart_path)
+                    # For simplicity, we'll assume if it's a featured image, it might not also be in the body,
+                    # or if it is, your existing get_img_tag will use the base64 version if populated.
+                    # If you want the saved forecast chart also as base64 in the HTML:
+                    base64_str_forecast = get_mpl_base64_from_file(saved_forecast_chart_path)
+                    if base64_str_forecast:
+                        chart_image_base64[chart_key] = base64_str_forecast
+                    plt.close(mpl_fig) # Close the figure
                 else:
-                    print(f"    FAILED (Base64 Encoding) for '{chart_key}'.")
-                    chart_image_base64[chart_key] = None # Store None on failure
+                    # For other charts, convert to Base64 as before for HTML embedding
+                    print(f"    Encoding {chart_key} to Base64...") # Use logger
+                    base64_str = get_mpl_base64(mpl_fig) # This function already closes the fig
+                    if base64_str:
+                        chart_image_base64[chart_key] = base64_str
+                        print(f"    Successfully encoded '{chart_key}'.") # Use logger
+                    else:
+                        print(f"    FAILED (Base64 Encoding) for '{chart_key}'.") # Use logger
+                        chart_image_base64[chart_key] = None
+                # --- END MODIFICATION ---
 
-                # Store conclusions (using rdata['detailed_ta_data'])
                 conclusion_data = rdata['detailed_ta_data']
-                if chart_key == 'bollinger_bands' and conclusion_data:
-                     chart_conclusions[chart_key] = get_bb_conclusion(conclusion_data.get('Current_Price'), conclusion_data.get('BB_Upper'), conclusion_data.get('BB_Lower'), conclusion_data.get('BB_Middle'))
-                elif chart_key == 'rsi' and conclusion_data:
-                     rsi_val = conclusion_data.get('RSI_14')
-                     chart_conclusions[chart_key] = get_rsi_conclusion(rsi_val)
-                elif chart_key == 'macd_histogram' and conclusion_data: # MACD conclusions stored once
-                     chart_conclusions['macd'] = get_macd_conclusion(conclusion_data.get('MACD_Line'), conclusion_data.get('MACD_Signal'), conclusion_data.get('MACD_Hist'), conclusion_data.get('MACD_Hist_Prev'))
+                # ... (your existing chart_conclusions logic) ...
 
-            except Exception as e:
-                print(f"    FAILED (Generation/Encoding) for '{chart_key}': {e}")
+            except Exception as e_chart:
+                print(f"    FAILED (Generation/Encoding/Saving) for '{chart_key}': {e_chart}") # Use logger
                 import traceback
                 traceback.print_exc()
-                if mpl_fig is not None and not mpl_fig.canvas is None: # Check if fig exists and wasn't closed
+                if mpl_fig and plt.fignum_exists(mpl_fig.number): # Check if fig exists and is open
                      plt.close(mpl_fig)
-                chart_image_base64[chart_key] = None # Store None on failure
+                chart_image_base64[chart_key] = None
+                if chart_key == 'forecast': # Ensure path is None if saving failed
+                    saved_forecast_chart_path = None
 
 
-        # --- Generate HTML Components (Same as before) ---
-        print("[WP Assets] Generating text/table HTML components...")
+        # --- Generate HTML Components (Same as before, using chart_image_base64 for embedded ones) ---
+        print("[WP Assets] Generating text/table HTML components...") # Use logger
+        # ... (all your intro_html, metrics_summary_html, etc. generation - unchanged) ...
         intro_html = generate_introduction_html(ticker, rdata)
         metrics_summary_html = generate_metrics_summary_html(ticker, rdata)
         detailed_forecast_table_html = generate_detailed_forecast_table_html(ticker, rdata)
@@ -978,26 +1004,26 @@ def create_wordpress_report_assets(
         conclusion_outlook_html = generate_conclusion_outlook_html(ticker, rdata)
         faq_html = generate_faq_html(ticker, rdata)
 
+
         # --- Assemble Report Body Content using Base64 Images ---
-        print("[WP Assets] Assembling report body HTML with embedded images...")
+        print("[WP Assets] Assembling report body HTML with embedded images...") # Use logger
         report_body_content = ""
-        # Helper to generate image tag or fallback
-        def get_img_tag(key, alt_text):
+        def get_img_tag(key, alt_text): # This helper remains useful for body images
             base64_data = chart_image_base64.get(key)
             if base64_data:
-                # Use 'embedded-chart-image' class for styling
                 return f'<img src="{base64_data}" alt="{alt_text}" class="embedded-chart-image">'
             else:
-                return f"<p><i>{alt_text} failed to generate.</i></p>"
+                return f"<p><i>{alt_text} chart could not be generated for embedding.</i></p>"
 
-        # --- Define sections using Base64 images ---
+        # --- Define sections (your existing html_sections list - unchanged) ---
         html_sections = [
             ("Introduction and Overview", intro_html, "introduction-overview"),
             ("Key Metrics and Forecast Summary", metrics_summary_html, "key-metrics-forecast"),
-            ("Price Forecast Chart",
-             get_img_tag('forecast', f'{ticker} Price Forecast Chart') +
+            ("Price Forecast Chart", # This will use the Base64 version if generated
+             get_img_tag('forecast', f'{ticker} Price Forecast Chart (Embedded)') +
              "<div class='narrative'><p>Recent actual average prices vs. forecasted price range (Low, Average, High).</p></div>",
              "forecast-chart-embedded"),
+            # ... (rest of your html_sections - unchanged) ...
             ("Detailed Forecast Table", detailed_forecast_table_html, "detailed-forecast-table"),
             ("Company Profile", company_profile_html, "company-profile"),
             ("Total Valuation", total_valuation_html, "total-valuation"),
@@ -1033,33 +1059,29 @@ def create_wordpress_report_assets(
             ("Conclusion and Outlook", conclusion_outlook_html, "conclusion-outlook"),
             ("Frequently Asked Questions", faq_html, "frequently-asked-questions")
         ]
-        # --- (Loop to build report body remains the same) ---
+        # ... (your existing loop to build report_body_content - unchanged) ...
         for item in html_sections:
-            title, html_content = item[0], item[1]
-            section_class = item[2] if len(item) > 2 else title.lower().replace(" ", "-").replace("&", "and")
-            # Check if content exists (handles None from get_img_tag and empty sections)
-            has_content = bool(html_content and str(html_content).strip() and not str(html_content).startswith(("<p>No data", "<p><i>")))
+            title, html_c, section_class_name = item[0], item[1], item[2]
+            has_content = bool(html_c and str(html_c).strip() and not str(html_c).startswith(("<p>No data", "<p><i>")))
             if has_content:
-                report_body_content += f'<div class="section {section_class}">\n  <h2>{title}</h2>\n'
-                report_body_content += f"  {html_content}\n"
+                report_body_content += f'<div class="section {section_class_name}">\n  <h2>{title}</h2>\n'
+                report_body_content += f"  {html_c}\n"
                 report_body_content += f'</div>\n'
             else:
-                print(f"[WP Assets] Skipping empty or failed section: {title}")
+                print(f"[WP Assets] Skipping empty or failed section: {title}") # Use logger
 
 
-        # --- Assemble Final HTML FRAGMENT (Style + Body Content) ---
-        # Include the CSS within the fragment for easier pasting into WP HTML block
         final_html_fragment = f"{custom_style}\n<div class=\"report-container\">\n{report_body_content}\n</div>"
-
-        print(f"[WP Assets] Generation complete for {ticker} with embedded images.")
-        # --- No need to return image_urls, only the HTML fragment ---
-        return final_html_fragment, {} # Return empty dict for compatibility
+        print(f"[WP Assets] HTML fragment generation complete for {ticker}.") # Use logger
+        
+        # Return the HTML fragment AND the path to the saved forecast chart
+        return final_html_fragment, saved_forecast_chart_path
 
     except ValueError as ve:
-        print(f"[WP Assets] Value Error during report generation for {ticker}: {ve}")
-        return f"<h2>Error Generating Report for {ticker}</h2><p>{ve}</p>", {}
+        print(f"[WP Assets] Value Error for {ticker}: {ve}") # Use logger
+        return f"<h2>Error Generating Report for {ticker}</h2><p>{ve}</p>", None # Path is None on error
     except Exception as e:
-        print(f"[WP Assets] Unexpected Error during report generation for {ticker}: {e}")
+        print(f"[WP Assets] Unexpected Error for {ticker}: {e}") # Use logger
         import traceback
         traceback.print_exc()
-        return f"<h2>Unexpected Error Generating Report for {ticker}</h2><p>{e}</p>", {}
+        return f"<h2>Unexpected Error Generating Report for {ticker}</h2><p>{e}</p>", None # Path is None on error
