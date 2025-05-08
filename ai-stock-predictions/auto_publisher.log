@@ -214,3 +214,64 @@
 2025-05-07 10:03:13 - AutoPublisherLogger - INFO - Scheduling next job in 1 minutes.
 2025-05-07 10:04:13 - AutoPublisherLogger - INFO - Daily post limit (12) reached for 2025-05-07. Skipping.
 2025-05-07 10:04:13 - AutoPublisherLogger - INFO - Scheduling next job in 3 minutes.
+2025-05-07 14:05:08 - AutoPublisherLogger - INFO - Loaded 9209 order-preserved unique tickers from Excel.
+2025-05-07 14:05:08 - AutoPublisherLogger - INFO - Attempting to load state from 'e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\auto_publisher_state.pkl'
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO - Loaded state: 9195 pending, 2 failed, last writer index 3.
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO - Writer iterator will start with: brandonpayne
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO - --- Starting Auto Publisher Service ---
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO -     State file: e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\auto_publisher_state.pkl
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO -     Publishing to: https://moneystockers.com
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO -     Writers Configured: 7
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO -     Tickers in Master List (Excel): 9209
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO -     Tickers Initially Pending: 9195
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO -     Tickers Initially in Retry List: 2
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO -     Posting Interval: 1-3 minutes
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO -     Default Category ID: 14
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO - Scheduling the first job...
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO - Scheduling next job in 2 minutes.
+2025-05-07 14:05:10 - AutoPublisherLogger - INFO - Scheduler started. Waiting for first scheduled run...
+2025-05-07 14:07:10 - AutoPublisherLogger - INFO - --- Starting job for Ticker: UBER, Writer: brandonpayne (Original Idx: 4) ---
+2025-05-07 14:07:10 - AutoPublisherLogger - INFO -     (Pending this cycle: 9195, For later retry: 2)
+2025-05-07 14:07:10 - AutoPublisherLogger - INFO - Generating report and chart for ticker: UBER
+2025-05-07 14:07:28 - AutoPublisherLogger - INFO - Report HTML generated for UBER.
+2025-05-07 14:07:28 - AutoPublisherLogger - INFO - Forecast chart file generated: e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\UBER_1746607030\UBER_forecast_featured_1746607030.png
+2025-05-07 14:07:28 - AutoPublisherLogger - INFO - Uploading feat img 'uber-fc-202505071407.png' for UBER from e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\UBER_1746607030\UBER_forecast_featured_1746607030.png
+2025-05-07 14:07:32 - AutoPublisherLogger - INFO - Uploaded feat img for UBER, Media ID: 1557
+2025-05-07 14:07:32 - AutoPublisherLogger - WARNING - Could not clean temp img e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\UBER_1746607030\UBER_forecast_featured_1746607030.png: [WinError 32] The process cannot access the file because it is being used by another process: 'e:\\ai stock price prediction model\\ai prediction 24th apr - proper working\\ai-stock-predictions\\ai-stock-predictions\\temp_wp_images\\UBER_1746607030\\UBER_forecast_featured_1746607030.png'
+2025-05-07 14:07:32 - AutoPublisherLogger - INFO - Attempting publish 'UBER Stock Prediction, and Price Target (2025-26) - What Experts Say' (Slug: uber-stock-prediction-and-price-target-2025-26-what-experts) by brandonpayne.
+2025-05-07 14:07:34 - AutoPublisherLogger - INFO - Report uploaded for UBER by brandonpayne! Post ID: 1558
+2025-05-07 14:07:34 - AutoPublisherLogger - INFO -     Posts published today (2025-05-07): 1
+2025-05-07 14:07:34 - AutoPublisherLogger - INFO - Attempting to save state: 9194 pending, 2 failed, writer index 4.
+2025-05-07 14:07:34 - AutoPublisherLogger - INFO - Successfully saved state to e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\auto_publisher_state.pkl
+2025-05-07 14:07:34 - AutoPublisherLogger - INFO - --- Job finished for Ticker: UBER ---
+2025-05-07 14:07:34 - AutoPublisherLogger - INFO - Scheduling next job in 1 minutes.
+2025-05-07 14:08:34 - AutoPublisherLogger - INFO - --- Starting job for Ticker: F, Writer: haileyneff (Original Idx: 5) ---
+2025-05-07 14:08:34 - AutoPublisherLogger - INFO -     (Pending this cycle: 9194, For later retry: 2)
+2025-05-07 14:08:34 - AutoPublisherLogger - INFO - Generating report and chart for ticker: F
+2025-05-07 14:08:59 - AutoPublisherLogger - INFO - Report HTML generated for F.
+2025-05-07 14:08:59 - AutoPublisherLogger - INFO - Forecast chart file generated: e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\F_1746607114\F_forecast_featured_1746607114.png
+2025-05-07 14:08:59 - AutoPublisherLogger - INFO - Uploading feat img 'f-fc-202505071408.png' for F from e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\F_1746607114\F_forecast_featured_1746607114.png
+2025-05-07 14:09:02 - AutoPublisherLogger - INFO - Uploaded feat img for F, Media ID: 1559
+2025-05-07 14:09:02 - AutoPublisherLogger - WARNING - Could not clean temp img e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\F_1746607114\F_forecast_featured_1746607114.png: [WinError 32] The process cannot access the file because it is being used by another process: 'e:\\ai stock price prediction model\\ai prediction 24th apr - proper working\\ai-stock-predictions\\ai-stock-predictions\\temp_wp_images\\F_1746607114\\F_forecast_featured_1746607114.png'
+2025-05-07 14:09:02 - AutoPublisherLogger - INFO - Attempting publish 'Analyst View on F: Key Predictions and Price Forecast 2025-26' (Slug: analyst-view-on-f-key-predictions-and-price-forecast-2025-26) by haileyneff.
+2025-05-07 14:09:04 - AutoPublisherLogger - INFO - Report uploaded for F by haileyneff! Post ID: 1560
+2025-05-07 14:09:04 - AutoPublisherLogger - INFO -     Posts published today (2025-05-07): 2
+2025-05-07 14:09:04 - AutoPublisherLogger - INFO - Attempting to save state: 9193 pending, 2 failed, writer index 5.
+2025-05-07 14:09:04 - AutoPublisherLogger - INFO - Successfully saved state to e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\auto_publisher_state.pkl
+2025-05-07 14:09:04 - AutoPublisherLogger - INFO - --- Job finished for Ticker: F ---
+2025-05-07 14:09:04 - AutoPublisherLogger - INFO - Scheduling next job in 2 minutes.
+2025-05-07 14:11:04 - AutoPublisherLogger - INFO - --- Starting job for Ticker: GE, Writer: adamdobratz (Original Idx: 6) ---
+2025-05-07 14:11:04 - AutoPublisherLogger - INFO -     (Pending this cycle: 9193, For later retry: 2)
+2025-05-07 14:11:04 - AutoPublisherLogger - INFO - Generating report and chart for ticker: GE
+2025-05-07 14:11:18 - AutoPublisherLogger - INFO - Report HTML generated for GE.
+2025-05-07 14:11:18 - AutoPublisherLogger - INFO - Forecast chart file generated: e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\GE_1746607264\GE_forecast_featured_1746607264.png
+2025-05-07 14:11:18 - AutoPublisherLogger - INFO - Uploading feat img 'ge-fc-202505071411.png' for GE from e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\GE_1746607264\GE_forecast_featured_1746607264.png
+2025-05-07 14:11:22 - AutoPublisherLogger - INFO - Uploaded feat img for GE, Media ID: 1561
+2025-05-07 14:11:22 - AutoPublisherLogger - WARNING - Could not clean temp img e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\temp_wp_images\GE_1746607264\GE_forecast_featured_1746607264.png: [WinError 32] The process cannot access the file because it is being used by another process: 'e:\\ai stock price prediction model\\ai prediction 24th apr - proper working\\ai-stock-predictions\\ai-stock-predictions\\temp_wp_images\\GE_1746607264\\GE_forecast_featured_1746607264.png'
+2025-05-07 14:11:22 - AutoPublisherLogger - INFO - Attempting publish 'GE 2025-26 Forecast: Technical Analysis & Price Predictions' (Slug: ge-2025-26-forecast-technical-analysis-price-predictions) by adamdobratz.
+2025-05-07 14:11:24 - AutoPublisherLogger - INFO - Report uploaded for GE by adamdobratz! Post ID: 1562
+2025-05-07 14:11:24 - AutoPublisherLogger - INFO -     Posts published today (2025-05-07): 3
+2025-05-07 14:11:24 - AutoPublisherLogger - INFO - Attempting to save state: 9192 pending, 2 failed, writer index 6.
+2025-05-07 14:11:24 - AutoPublisherLogger - INFO - Successfully saved state to e:\ai stock price prediction model\ai prediction 24th apr - proper working\ai-stock-predictions\ai-stock-predictions\auto_publisher_state.pkl
+2025-05-07 14:11:24 - AutoPublisherLogger - INFO - --- Job finished for Ticker: GE ---
+2025-05-07 14:11:24 - AutoPublisherLogger - INFO - Scheduling next job in 1 minutes.

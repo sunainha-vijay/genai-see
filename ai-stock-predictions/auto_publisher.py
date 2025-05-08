@@ -37,7 +37,7 @@ NUM_WRITERS_STR = os.environ.get("NUM_WRITERS")
 FRED_API_KEY = os.environ.get("FRED_API_KEY")
 # MODIFIED: Defaulting interval to 75-100 minutes if not set or invalid in .env
 MIN_INTERVAL_MINUTES_STR = os.environ.get("MIN_INTERVAL_MINUTES", "1")
-MAX_INTERVAL_MINUTES_STR = os.environ.get("MAX_INTERVAL_MINUTES", "3")
+MAX_INTERVAL_MINUTES_STR = os.environ.get("MAX_INTERVAL_MINUTES", "2")
 WP_CATEGORY_STOCKFORECAST_ID_STR = os.environ.get("WP_CATEGORY_STOCKFORECAST_ID")
 EXCEL_FILE_PATH = os.environ.get("EXCEL_FILE_PATH")
 EXCEL_TICKER_COLUMN_NAME = os.environ.get("EXCEL_TICKER_COLUMN_NAME")
@@ -57,14 +57,14 @@ try:
     MIN_INTERVAL_MINUTES = int(MIN_INTERVAL_MINUTES_STR)
     MAX_INTERVAL_MINUTES = int(MAX_INTERVAL_MINUTES_STR)
     if MIN_INTERVAL_MINUTES <= 0 or MAX_INTERVAL_MINUTES <= 0:
-        app_logger.warning("Interval minutes must be positive. Using defaults 75-100 min.")
-        MIN_INTERVAL_MINUTES, MAX_INTERVAL_MINUTES = 1, 3
+        app_logger.warning("Interval minutes must be positive. Using defaults 1-2 min.")
+        MIN_INTERVAL_MINUTES, MAX_INTERVAL_MINUTES = 1, 2
     elif MIN_INTERVAL_MINUTES > MAX_INTERVAL_MINUTES :
         app_logger.warning(f"MIN_INTERVAL_MINUTES ({MIN_INTERVAL_MINUTES}) must be less than or equal to MAX_INTERVAL_MINUTES ({MAX_INTERVAL_MINUTES}). Using defaults 75-100 min.")
-        MIN_INTERVAL_MINUTES, MAX_INTERVAL_MINUTES = 1, 3
+        MIN_INTERVAL_MINUTES, MAX_INTERVAL_MINUTES = 1, 2
 except ValueError:
-    app_logger.warning(f"Intervals from .env invalid. Defaulting to 1-3 min.")
-    MIN_INTERVAL_MINUTES, MAX_INTERVAL_MINUTES = 1, 3
+    app_logger.warning(f"Intervals from .env invalid. Defaulting to 1-2 min.")
+    MIN_INTERVAL_MINUTES, MAX_INTERVAL_MINUTES = 1, 2
 
 WP_CATEGORY_STOCKFORECAST_ID = None
 if WP_CATEGORY_STOCKFORECAST_ID_STR:

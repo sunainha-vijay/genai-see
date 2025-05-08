@@ -471,16 +471,16 @@ def _prepare_report_data(ticker, actual_data, forecast_data, historical_data, fu
         first_period = str(forecast_data['Period'].iloc[0])
         if '-' in first_period:
              parts = first_period.split('-')
-             if len(parts) == 2 and len(parts[0]) == 4 and len(parts[1]) == 2: period_label = "Month" # YYYY-MM
-             elif len(parts) == 3 and len(parts[0]) == 4 and len(parts[1]) == 2 and len(parts[2]) == 2: period_label = "Day" # YYYY-MM-DD
-             elif len(parts) == 2 and len(parts[0]) == 4 and len(parts[1].upper().startswith('W')): period_label = "Week" # YYYY-Www
+             if len(parts) == 2 and len(parts[0]) == 4 and len(parts[1]) == 2: period_label = "Month" #YYYY-MM
+             elif len(parts) == 3 and len(parts[0]) == 4 and len(parts[1]) == 2 and len(parts[2]) == 2: period_label = "Day" #YYYY-MM-DD
+             elif len(parts) == 2 and len(parts[0]) == 4 and len(parts[1].upper().startswith('W')): period_label = "Week" #YYYY-Www
     elif actual_data is not None and not actual_data.empty and "Period" in actual_data.columns:
         first_period = str(actual_data['Period'].iloc[0])
         if '-' in first_period:
              parts = first_period.split('-')
-             if len(parts) == 2 and len(parts[0]) == 4 and len(parts[1]) == 2: period_label = "Month" # YYYY-MM
-             elif len(parts) == 3 and len(parts[0]) == 4 and len(parts[1]) == 2 and len(parts[2]) == 2: period_label = "Day" # YYYY-MM-DD
-             elif len(parts) == 2 and len(parts[0]) == 4 and len(parts[1].upper().startswith('W')): period_label = "Week" # YYYY-Www
+             if len(parts) == 2 and len(parts[0]) == 4 and len(parts[1]) == 2: period_label = "Month" #YYYY-MM
+             elif len(parts) == 3 and len(parts[0]) == 4 and len(parts[1]) == 2 and len(parts[2]) == 2: period_label = "Day" #YYYY-MM-DD
+             elif len(parts) == 2 and len(parts[0]) == 4 and len(parts[1].upper().startswith('W')): period_label = "Week" #YYYY-Www
 
     data_out['time_col'] = time_col
     data_out['period_label'] = period_label
@@ -968,7 +968,23 @@ def create_wordpress_report_assets(
                 # --- END MODIFICATION ---
 
                 conclusion_data = rdata['detailed_ta_data']
-                # ... (your existing chart_conclusions logic) ...
+                if chart_key == 'bollinger_bands':
+                    chart_conclusions['bollinger_bands'] = get_bb_conclusion(
+                        conclusion_data.get('Current_Price'),
+                        conclusion_data.get('BB_Upper'),
+                        conclusion_data.get('BB_Lower'),
+                        conclusion_data.get('BB_Middle')
+                    )
+                elif chart_key == 'rsi':
+                    chart_conclusions['rsi'] = get_rsi_conclusion(conclusion_data.get('RSI_14'))
+                elif chart_key == 'macd_lines' or chart_key == 'macd_histogram': # Combined conclusion
+                     chart_conclusions['macd'] = get_macd_conclusion(
+                         conclusion_data.get('MACD_Line'),
+                         conclusion_data.get('MACD_Signal'),
+                         conclusion_data.get('MACD_Hist'),
+                         conclusion_data.get('MACD_Hist_Prev')
+                     )
+
 
             except Exception as e_chart:
                 print(f"    FAILED (Generation/Encoding/Saving) for '{chart_key}': {e_chart}") # Use logger
@@ -1000,7 +1016,7 @@ def create_wordpress_report_assets(
         short_selling_info_html = generate_short_selling_info_html(ticker, rdata)
         risk_factors_html = generate_risk_factors_html(ticker, rdata)
         analyst_insights_html = generate_analyst_insights_html(ticker, rdata)
-        recent_news_html = generate_recent_news_html(ticker, rdata)
+        # recent_news_html = generate_recent_news_html(ticker, rdata) # USER REQUEST: Comment out news
         conclusion_outlook_html = generate_conclusion_outlook_html(ticker, rdata)
         faq_html = generate_faq_html(ticker, rdata)
 
@@ -1055,7 +1071,7 @@ def create_wordpress_report_assets(
             ("Short Selling Information", short_selling_info_html, "short-selling-information"),
             ("Risk Factors", risk_factors_html, "risk-factors"),
             ("Analyst Insights and Consensus", analyst_insights_html, "analyst-insights"),
-            ("Recent News and Developments", recent_news_html, "recent-news"),
+            # ("Recent News and Developments", recent_news_html, "recent-news"), # USER REQUEST: Comment out news
             ("Conclusion and Outlook", conclusion_outlook_html, "conclusion-outlook"),
             ("Frequently Asked Questions", faq_html, "frequently-asked-questions")
         ]
