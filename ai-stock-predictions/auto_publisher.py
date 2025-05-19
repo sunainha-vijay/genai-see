@@ -221,7 +221,7 @@ def generate_post_title(ticker, writer_info): # As per your script
     year_range_fixed = "2025-26"
     template = random.choice(HEADLINE_TEMPLATES)
     title = template.format(ticker=ticker, year_range=year_range_fixed, writer_name=writer_info['username'])
-    max_title_length = 80
+    max_title_length = 90
     if len(title) > max_title_length:
         last_space = title.rfind(' ', 0, max_title_length - 3)
         title = title[:last_space] + "..." if last_space != -1 else title[:max_title_length - 3] + "..."
