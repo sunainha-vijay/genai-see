@@ -20,7 +20,7 @@ CACHE_FILENAME = "macro_indicators.csv"
 
 load_dotenv()
 
-FRED_API_KEY = os.environ.get('FRED_API_KEY')
+FRED_API_KEY = os.environ.get("b98bbb8dd445eb7bddd5788db523b0f4")
 
 def fetch_macro_indicators(app_root, start_date=None, end_date=None): # Added app_root
     """
