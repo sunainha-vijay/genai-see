@@ -86,6 +86,6 @@ psutil==7.0.0
 cffi==1.17.1
 pycparser==2.22
 schedule==1.2.2
-dotenv==1.1.0
+python-dotenv
 et-xmlfile==2.0.0
 openpyxl==3.1.5  
